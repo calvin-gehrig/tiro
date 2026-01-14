@@ -30,7 +30,7 @@ pub fn tokenize(raw_program: String) -> Vec<Token> {
         }
 
     }
-    mem::take(&mut lexer.result)
+    lexer.end()
 }
 
 struct Lexer {
@@ -49,5 +49,9 @@ impl Lexer {
     }
     fn add_char(&mut self, character: char) {
         self.current_token.push(character);
+    }
+    fn end(mut self) -> Vec<Token> {
+        self.result.push(Token::EndOfProgram);
+        mem::take(&mut self.result)
     }
 }

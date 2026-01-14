@@ -38,7 +38,7 @@ impl super::Lexer {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Token {
     Let,
     Print,
@@ -51,5 +51,6 @@ pub enum Token {
     Id(String),
     StringToken(String),
     Number(u32),
-    Whitespace
+    Whitespace,
+    EndOfProgram
 }

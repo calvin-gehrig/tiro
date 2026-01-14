@@ -3,6 +3,7 @@ use std::env;
 
 mod lexer;
 mod parser;
+mod grammar;
 
 fn main() {
     let raw_program : String = match fs::read_to_string(
@@ -13,6 +14,6 @@ fn main() {
     };
     let tokens : Vec<lexer::Token> = lexer::tokenize(raw_program);
     println!("{:?}", tokens);
-    let ast : Vec<parser::Statement> = parser::parse(tokens);
-    println!("{:?}", ast);
+    let parse_result : Vec<parser::EarleyItem> = parser::parse(tokens);
+    println!("{:?}", parse_result);
 }
