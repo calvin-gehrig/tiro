@@ -1,57 +1,32 @@
-use std::mem;
+use logos::{Logos, SpannedIter};
 
-mod state;
-use state::State;
+pub mod token;
+use token::Token;
 
-mod scan;
-use scan::{
-    scan_word,
-    scan_symbol,
-    scan_number,
-    scan_whitespace,
-    scan_string
-};
+pub mod error;
+use error::LexingError;
 
-mod token;
-pub use token::Token;
+#[cfg(test)]
+mod tests;
 
-pub fn tokenize(raw_program: String) -> Vec<Token> {
-    let mut lexer = Lexer::new();
+pub type Spanned<Token, Location, Error> = Result<(Location, Token, Location), Error>;
 
-    for character in raw_program.chars() {
-        match lexer.state {
-            State::DefaultState => lexer.change_state(character),
-            State::Word => scan_word(character, &mut lexer),
-            State::Symbol => scan_symbol(character, &mut lexer),
-            State::Number => scan_number(character, &mut lexer),
-            State::Whitespace => scan_whitespace(character, &mut lexer),
-            State::RegularString => scan_string(character, '\'', &mut lexer),
-            State::DoubleString => scan_string(character, '"', &mut lexer)
-        }
-
-    }
-    lexer.end()
+pub struct Lexer<'input> {
+  token_stream: SpannedIter<'input, Token>,
 }
 
-struct Lexer {
-    state : State,
-    current_token : String,
-    result : Vec<Token>
+impl<'input> Lexer<'input> {
+  pub fn new(input: &'input str) -> Self {
+    Self { token_stream: Token::lexer(input).spanned() }
+  }
 }
 
-impl Lexer {
-    fn new() -> Self {
-        Self {
-            state : State::new(),
-            current_token: String::new(),
-            result: Vec::new()
-        }
-    }
-    fn add_char(&mut self, character: char) {
-        self.current_token.push(character);
-    }
-    fn end(mut self) -> Vec<Token> {
-        self.result.push(Token::EndOfProgram);
-        mem::take(&mut self.result)
-    }
+impl<'input> Iterator for Lexer<'input> {
+  type Item = Spanned<Token, usize, LexingError>;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    self.token_stream
+      .next()
+      .map(|(token, span)| Ok((span.start, token?, span.end)))
+  }
 }

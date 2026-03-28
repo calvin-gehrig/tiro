@@ -1,0 +1,44 @@
+use super::ast::{
+    Statement,
+    Expression
+};
+
+use crate::lexer::{
+    token::Token,
+    error::LexingError
+};
+
+grammar;
+
+extern {
+    type Location = usize;
+    type Error = LexingError;
+
+    enum Token {
+        "echo" => Token::Echo,
+        "catena" => Token::Catena(<String>)
+    }
+}
+
+pub Program: Vec<Statement> = {
+    <stmts:Stmt*> => stmts
+}
+
+Stmt: Statement = {
+    StmtPrint
+}
+
+StmtPrint: Statement = {
+    "echo" <Expr> => Statement::Print {value: <>}
+}
+
+Expr: Expression = {
+    #[precedence(level="1")]
+    ExprValue
+}
+
+ExprValue: Expression = {
+    "catena" => Expression::StringValue {value: <>}
+}
+
+
