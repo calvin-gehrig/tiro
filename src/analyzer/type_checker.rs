@@ -1,6 +1,12 @@
 use crate::parser::ast::{
     Statement,
-    Expression
+    Expression,
+    Symbol
+};
+
+use crate::analyzer::resolver::{
+    ResolvedAst,
+    Symtable
 };
 
 mod error;
@@ -12,24 +18,30 @@ use error::{
 #[cfg(test)]
 mod tests;
 
-pub fn type_check(mut ast: Vec<Statement>) -> Vec<Statement> {
-    let mut analyzer = Analyzer::new();
-    for statement in &mut ast {
-        check_statement(statement, &mut analyzer);
+pub fn type_check(mut resolved_ast: ResolvedAst) -> ResolvedAst {
+    let mut type_checker = TypeChecker::new(resolved_ast.symtable, resolved_ast.error_mode);
+    for statement in &mut resolved_ast.ast {
+        check_statement(statement, &mut type_checker);
     }
-    ast
+    ResolvedAst { 
+        ast: resolved_ast.ast, 
+        symtable: type_checker.symtable, 
+        error_mode: type_checker.error_mode
+    }
 }
 
-struct Analyzer {
+struct TypeChecker {
+    symtable: Symtable,
     error_stack: Vec<TypeCheckError>,
     error_mode: bool
 }
 
-impl Analyzer {
-    fn new () -> Self {
+impl TypeChecker {
+    fn new (symtable: Symtable, error_mode: bool) -> Self {
         Self {
             error_stack: Vec::new(),
-            error_mode: false
+            symtable,
+            error_mode
         }
     }
 
@@ -39,30 +51,65 @@ impl Analyzer {
             self.error_mode = true;
         }
     }
+
+    fn get_vartype(&self, id: usize) -> Option<TiroType> {
+        self.symtable.variable_table[id].clone()
+    }
+
+    fn assign_vartype(&mut self, id: usize, vartype: TiroType) {
+        self.symtable.variable_table[id] = Some(vartype);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum TiroType {
+pub enum TiroType {
     StringType
 }
 
-fn check_statement(statement: &mut Statement, analyzer: &mut Analyzer) {
+fn check_statement(statement: &mut Statement, type_checker: &mut TypeChecker) {
     match statement {
-        Statement::Print {value} => check_print(value, analyzer),
+        Statement::Print {value} => check_print(value, type_checker),
+        Statement::VariableAssignment {identifier, value} => check_variable_assignment(identifier, value, type_checker),
+        _ => panic!("Unsupported Statement type")
     };
 }
 
-fn check_print(value: &mut Expression, analyzer: &mut Analyzer) {
-    if let Some(tiro_type) = check_expression(value, analyzer) {
+fn check_print(value: &mut Expression, type_checker: &mut TypeChecker) {
+    if let Some(tiro_type) = check_expression(value, type_checker) {
         if tiro_type != TiroType::StringType {
-            analyzer.push_error(TypeCheckError::MismatchedTypeError(
+            type_checker.push_error(TypeCheckError::MismatchedTypeError(
                     TypeError::PrintValueError(TiroType::StringType)));
         }
     }
 }
 
-fn check_expression(expression: &mut Expression, analyzer: &mut Analyzer) -> Option<TiroType> {
+fn check_variable_assignment(identifier: &mut Symbol, value: &mut Expression, type_checker: &mut TypeChecker) {
+    if let Symbol::Id(id) = identifier {
+        let variable_type = type_checker.get_vartype(*id);
+        if let Some(value_type) = check_expression(value, type_checker) {
+            match variable_type {
+                Some(var_type) => if var_type != value_type {
+                    type_checker.push_error(TypeCheckError::MismatchedTypeError(
+                            TypeError::VariableAssignmentError(var_type, value_type)));
+                },
+                None => type_checker.assign_vartype(*id, value_type)
+            }
+        }
+    } else { panic!("Unexpected unresolved id") }
+}
+
+fn check_expression(expression: &mut Expression, type_checker: &mut TypeChecker) -> Option<TiroType> {
     match expression {
         Expression::StringValue {..} => Some(TiroType::StringType),
+        Expression::Variable {identifier} => check_variable(identifier, type_checker),
+        _ => panic!("Unsupported expression type")
     }
+}
+
+fn check_variable(identifier: &mut Symbol, type_checker: &mut TypeChecker) -> Option<TiroType> {
+    if let Symbol::Id(id) = identifier {
+        let vartype = type_checker.get_vartype(*id);
+        if vartype == None { panic!("Unexpected unintialized variable") }
+        vartype
+    } else { panic!("Unexpected unresolved identifier") }
 }

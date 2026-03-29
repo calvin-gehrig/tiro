@@ -1,6 +1,7 @@
 use super::ast::{
     Statement,
-    Expression
+    Expression,
+    Symbol
 };
 
 use crate::lexer::{
@@ -15,8 +16,11 @@ extern {
     type Error = LexingError;
 
     enum Token {
+        "id" => Token::Identifier(<String>),
         "echo" => Token::Echo,
-        "catena" => Token::Catena(<String>)
+        "sit" => Token::Sit,
+        "catena" => Token::Catena(<String>),
+        ":" => Token::Column
     }
 }
 
@@ -25,11 +29,20 @@ pub Program: Vec<Statement> = {
 }
 
 Stmt: Statement = {
-    StmtPrint
+    StmtPrint,
+    StmtVariableDeclaration
 }
 
 StmtPrint: Statement = {
     "echo" <Expr> => Statement::Print {value: <>}
+}
+
+StmtVariableDeclaration : Statement = {
+    "sit" <varname:"id"> ":" <vartype:"id"> <varvalue:Expr> => Statement::VariableDeclaration {
+        value: varvalue,
+        variable_type: Some(Symbol::Name(vartype)),
+        identifier: Symbol::Name(varname)
+    }
 }
 
 Expr: Expression = {
@@ -38,7 +51,8 @@ Expr: Expression = {
 }
 
 ExprValue: Expression = {
-    "catena" => Expression::StringValue {value: <>}
+    "catena" => Expression::StringValue {value: <>},
+    "id" => Expression::Variable {identifier: Symbol::Name(<>)}
 }
 
 

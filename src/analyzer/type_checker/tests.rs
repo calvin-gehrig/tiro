@@ -1,15 +1,49 @@
 use crate::parser::ast::{
     Statement,
-    Expression
+    Expression,
+    Symbol
 };
 
-use super::type_check;
+use super::{
+    type_check,
+    TiroType
+};
+
+use crate::analyzer::resolver::{
+    ResolvedAst,
+    Symtable
+};
 
 #[test]
 fn print () {
-    let print_statement = vec![
-        Statement::Print {value:
-            Expression::StringValue {value: "a".to_string()}
-    }];
-    assert_eq!(type_check(print_statement.clone()), print_statement);
+    assert_eq!(type_check(ResolvedAst {
+            ast: vec![
+                Statement::Print {
+                    value: Expression::StringValue {value: "a".to_string()}
+                }
+            ],
+            symtable: Symtable {
+                variable_table: vec![]
+            },
+            error_mode: false
+    }).error_mode, false);
+}
+
+#[test]
+fn variable_assignment () {
+    assert_eq!(type_check(ResolvedAst {
+            ast: vec![
+                Statement::VariableAssignment {
+                    value: Expression::StringValue {value: "a".to_string()},
+                    identifier: Symbol::Id(0)
+                },
+                Statement::Print {
+                    value: Expression::Variable {identifier: Symbol::Id(0)}
+                }
+            ],
+            symtable: Symtable {
+                variable_table: vec![Some(TiroType::StringType)]
+            },
+            error_mode: false
+    }).error_mode, false);
 }

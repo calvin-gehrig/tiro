@@ -11,7 +11,13 @@ pub enum Token {
     #[regex("\"[^\"]*\"", parse_catena)]
     Catena(String),
     #[token("echo")]
-    Echo
+    Echo,
+    #[token("sit")]
+    Sit,
+    #[token(":")]
+    Column,
+    #[regex("[a-zA-Z_][a-zA-Z_0-9]*", parse_id)]
+    Identifier(String)
 }
 
 impl fmt::Display for Token {
@@ -27,4 +33,8 @@ fn parse_catena(lex: &mut Lexer<Token>) -> Result<String, LexingError> {
     } else {
         Err(LexingError::RegexStringError(slice.to_string()))
     }
+}
+
+fn parse_id(lex: &mut Lexer<Token>) -> String {
+    lex.slice().to_string()
 }

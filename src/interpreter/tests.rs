@@ -1,7 +1,8 @@
 use crate::compiler::{
     Opcode,
     StackValue,
-    HeapValue
+    HeapValue,
+    LocalVar
 };
 
 use super::{
@@ -23,6 +24,21 @@ fn print() {
             HeapValue::StringValue("a".to_string())
         ], vec![
             Opcode::Push(StackValue::HeapIndex(0)),
+            Opcode::Print
+        ]),
+        vec!["a"]);
+}
+
+#[test]
+fn variable_declaration() {
+    assert_eq!(interpret(vec![
+            HeapValue::StringValue("a".to_string())    
+        ], vec![
+            Opcode::Push(StackValue::HeapIndex(0)),
+            Opcode::Push(StackValue::LocalVar(LocalVar {
+                index: 0,
+                depth: 0
+            })),
             Opcode::Print
         ]),
         vec!["a"]);

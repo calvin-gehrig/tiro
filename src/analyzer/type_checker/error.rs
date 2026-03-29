@@ -5,5 +5,6 @@ pub enum TypeCheckError {
 }
 
 pub enum TypeError {
-    PrintValueError(TiroType)
+    PrintValueError(TiroType),
+    VariableAssignmentError(TiroType, TiroType)
 }

@@ -1,1 +1,2 @@
-echo "Hello, world!"
+sit message:cat "Hello, world!"
+echo message

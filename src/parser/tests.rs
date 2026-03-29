@@ -1,6 +1,7 @@
 use super::ast::{
     Statement,
-    Expression
+    Expression,
+    Symbol
 };
 
 use crate::lexer::Lexer;
@@ -13,11 +14,35 @@ fn parse_test(src: &str) -> Vec<Statement> {
 }
 
 #[test]
-fn print() {
+fn print_string() {
     assert_eq!(parse_test("echo \"a\""), vec![
         Statement::Print {
             value: Expression::StringValue {
                 value: "a".to_string()
+            }
+        }
+    ]);
+}
+
+#[test]
+fn variableDeclaration() {
+    assert_eq!(parse_test("sit _a1:cat \"a\""), vec![
+        Statement::VariableDeclaration {
+            value: Expression::StringValue {
+                value: "a".to_string()
+            },
+            identifier: Symbol::Name("_a1".to_string()),
+            variable_type: Some(Symbol::Name("cat".to_string()))
+        }
+    ]);
+}
+
+#[test]
+fn print_variable() {
+    assert_eq!(parse_test("echo a"), vec![
+        Statement::Print {
+            value: Expression::Variable {
+                identifier: Symbol::Name("a".to_string())
             }
         }
     ]);
