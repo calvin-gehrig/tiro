@@ -75,8 +75,9 @@ fn function() {
             block: Box::new(vec![
                 Statement::ReturnStatement {
                     return_value: Some(Expression::Variable {
-                        identifier: Symbol::Name("b".to_string())
-                    })
+                        identifier: Symbol::Name("b".to_string()),
+                    }),
+                    function: Symbol::Name("select".to_string())
                 }])
         },
         Statement::Call {
@@ -89,7 +90,19 @@ fn function() {
             }
         }
     ]), ResolvedAst {
-        ast: vec![Statement::Call {
+        ast: vec![
+            Statement::FunctionDefinition {
+                identifier: Symbol::Id(0),
+                block: Box::new(vec![
+                    Statement::ReturnStatement {
+                        return_value: Some(Expression::Variable {
+                            identifier: Symbol::Id(1),
+                        }),
+                        function: Symbol::Id(0)
+                    }
+                ])
+            },
+            Statement::Call {
             expression: Expression::FunctionCall {
                 identifier: Symbol::Id(0),
                 argument_list: Box::new(vec![
@@ -115,6 +128,59 @@ fn function() {
                         param_type: TiroType::StringType
                     }
                 ]
+            }]
+        },
+        error_mode: false
+    });
+}
+
+#[test]
+fn recursive_function() {
+    assert_eq!(resolve(vec![
+        Statement::FunctionDeclaration {
+            identifier: Symbol::Name("rec".to_string()),
+            return_type: None,
+            param_list: vec![],
+            block: Box::new(vec![
+                Statement::ReturnStatement {
+                    return_value: Some(Expression::FunctionCall {
+                        identifier: Symbol::Name("rec".to_string()),
+                        argument_list: Box::new(vec![])
+                    }),
+                    function: Symbol::Name("rec".to_string())
+                }])
+        },
+        Statement::Call {
+            expression: Expression::FunctionCall {
+                identifier: Symbol::Name("rec".to_string()),
+                argument_list: Box::new(vec![])
+            }
+        }
+    ]), ResolvedAst {
+        ast: vec![
+            Statement::FunctionDefinition {
+                identifier: Symbol::Id(0),
+                block: Box::new(vec![
+                    Statement::ReturnStatement {
+                        return_value: Some(Expression::FunctionCall {
+                            identifier: Symbol::Id(0),
+                            argument_list: Box::new(vec![])
+                        }),
+                        function: Symbol::Id(0)
+                    }
+                ])
+            },
+            Statement::Call {
+            expression: Expression::FunctionCall {
+                identifier: Symbol::Id(0),
+                argument_list: Box::new(vec![])
+            }
+        }],
+        symtable: Symtable {
+            variable_table: vec![],
+            function_table: vec![Function {
+                return_type: None,
+                param_list: vec![]
             }]
         },
         error_mode: false
@@ -153,7 +219,8 @@ fn symbol_as_variable_error() {
                 Statement::ReturnStatement {
                     return_value: Some(Expression::Variable {
                         identifier: Symbol::Name("b".to_string())
-                    })
+                    }),
+                    function: Symbol::Name("select".to_string())
                 }])
         },
         Statement::Call {

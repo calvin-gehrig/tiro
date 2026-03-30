@@ -61,7 +61,8 @@ fn function_declaration() {
                     value: Expression::StringValue {value: "Hello".to_string()}
                 },
                 Statement::ReturnStatement {
-                    return_value: None
+                    return_value: None,
+                    function: Symbol::Name("greet".to_string())
                 }
             ])
         }
@@ -88,7 +89,8 @@ fn str_id_declaration() {
                 Statement::ReturnStatement {
                     return_value: Some(Expression::Variable {
                                           identifier: Symbol::Name("a".to_string())
-                    })
+                    }),
+                    function: Symbol::Name("str_id".to_string())
                 }
             ])
         }

@@ -112,21 +112,30 @@ impl Resolver {
         } else { panic!("Unexpected resolved variable") }
     }
 
-    fn declare_function(&mut self,
-        symbol: Symbol,
-        return_type: Option<TiroType>,
-        param_list: Vec<ParamType>,
-        block: Vec<Statement>
-    ) {
+    fn register_function(&mut self, symbol: Symbol) -> usize {
         if let Symbol::Name(name) = symbol {
-            let function = Function {
-                return_type,
-                param_list
+            let empty_function = Function {
+                return_type: None,
+                param_list: vec![]
             };
-            self.symtable.function_table.push(function);
-            self.environment.push_ref(name, Reference::Function(self.symtable.function_table.len() - 1));
+            self.symtable.function_table.push(empty_function);
+            let index = self.symtable.function_table.len() - 1;
+            self.environment.push_ref(name, Reference::Function(index));
+            index
         } else { panic!("Unexpected resolved function") }
     }
+
+    fn declare_function(&mut self,
+        index: usize,
+        return_type: Option<TiroType>,
+        param_list: Vec<ParamType>
+    ) {
+        let maybe_function = self.symtable.function_table.get_mut(index);
+        if let Some(function) = maybe_function {
+            function.return_type = return_type;
+            function.param_list = param_list;
+        } else { panic!("Corrupted function index") }
+}
 
     fn resolve_variable(&self, symbol: Symbol) -> Result<usize, ReferenceError> {
         if let Symbol::Name(name) = symbol {
@@ -237,7 +246,7 @@ fn resolve_statement(statement: Statement, resolver: &mut Resolver) -> Result<Op
             block,
             resolver),
         Statement::Call {expression} => Ok(Some(Statement::Call {expression: resolve_expression(expression, resolver)?} )),
-        Statement::ReturnStatement {return_value} => resolve_return(return_value, resolver),
+        Statement::ReturnStatement {return_value, function} => resolve_return(return_value, function, resolver),
         _ => panic!("Unsupported statement type: {:?}", statement)
     }
 }
@@ -258,6 +267,7 @@ fn resolve_function_declaration(
     return_type: Option<Symbol>,
     block: Box<Vec<Statement>>,
     resolver: &mut Resolver) -> Result<Option<Statement>, ReferenceError> {
+    let index = resolver.register_function(identifier);
     let return_type = resolver.resolve_type(return_type)?;
 
     resolver.open_scope();
@@ -269,8 +279,11 @@ fn resolve_function_declaration(
     resolver.end_scope();
 
     let param_list = filter_error(param_list, resolver);
-    resolver.declare_function(identifier, return_type, param_list, block);
-    Ok(None)
+    resolver.declare_function(index, return_type, param_list);
+    Ok(Some(Statement::FunctionDefinition {
+        identifier: Symbol::Id(index),
+        block: Box::new(block)
+    }))
 }
 
 fn declare_parameter (parameter: Parameter, resolver: &mut Resolver) -> Result<ParamType, ReferenceError> {
@@ -282,11 +295,15 @@ fn declare_parameter (parameter: Parameter, resolver: &mut Resolver) -> Result<P
     })
 }
 
-fn resolve_return(mut return_value: Option<Expression>, resolver: &mut Resolver) -> Result<Option<Statement>, ReferenceError> {
+fn resolve_return(mut return_value: Option<Expression>, function: Symbol, resolver: &mut Resolver) -> Result<Option<Statement>, ReferenceError> {
     if let Some(value) = return_value {
         return_value = Some(resolve_expression(value, resolver)?);
     }
-    Ok(Some(Statement::ReturnStatement {return_value}))
+    let id = resolver.resolve_function(function)?;
+    Ok(Some(Statement::ReturnStatement {
+        return_value, 
+        function: Symbol::Id(id)
+    }))
 }
 
 

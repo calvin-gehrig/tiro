@@ -41,8 +41,13 @@ pub enum Statement {
         return_type: Option<Symbol>,
         block: Box<Vec<Statement>>
     },
+    FunctionDefinition {
+        identifier: Symbol,
+        block: Box<Vec<Statement>>
+    },
     ReturnStatement {
-        return_value: Option<Expression>
+        return_value: Option<Expression>,
+        function: Symbol
     },
     Call {
         expression: Expression
@@ -80,5 +85,27 @@ pub enum Symbol {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TiroType {
-    StringType
+    StringType,
+    Null(Nil)
+}
+
+impl TiroType {
+    pub fn null() -> Self {
+        Self::Null(Nil {})
+    }
+    pub fn is_null(&self) -> bool {
+        match self {
+            Self::Null(_) => true,
+            _ => false
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Nil {}
+
+impl PartialEq for Nil {
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
 }

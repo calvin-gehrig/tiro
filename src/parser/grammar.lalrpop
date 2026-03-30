@@ -62,8 +62,8 @@ StmtFunctionDeclaration : Statement = {
     "fvnctio" <funcname:"id"> "(" <mut param_list: (<ParamDef> ",")*>
         <last_param:ParamDef?> ")"
         <return_type:FunctionReturnType?> <mut block:Program>
-        <return_stmt:ReturnStmt> => Statement::FunctionDeclaration {
-            identifier: Symbol::Name(funcname),
+        <mut return_stmt:ReturnStmt> => Statement::FunctionDeclaration {
+            identifier: Symbol::Name(funcname.clone()),
             param_list: match last_param {
                 Some(param) => {
                     param_list.push(param);
@@ -73,6 +73,9 @@ StmtFunctionDeclaration : Statement = {
             },
             return_type,
             block: {
+                if let Statement::ReturnStatement {function,..} = &mut return_stmt {
+                    *function = Symbol::Name(funcname);
+                }
                 block.push(return_stmt);
                 Box::new(block)
             }
@@ -92,7 +95,8 @@ FunctionReturnType : Symbol = {
 
 ReturnStmt : Statement = {
     "reddi" <return_value:Expr?> => Statement::ReturnStatement {
-        return_value
+        return_value,
+        function: Symbol::Name("".to_string())
     }
 }
 
