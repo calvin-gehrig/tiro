@@ -1,6 +1,7 @@
-use super::ast::{
+use crate::common::{
     Statement,
     Expression,
+    Parameter,
     Symbol
 };
 
@@ -20,6 +21,13 @@ extern {
         "echo" => Token::Echo,
         "sit" => Token::Sit,
         "catena" => Token::Catena(<String>),
+        "fvnctio" => Token::Functio,
+        "reddi" => Token::Reddi,
+        "voc" => Token::Voc,
+        "(" => Token::LeftParan,
+        ")" => Token::RightParan,
+        "," => Token::Comma,
+        "=>" => Token::RightArrow,
         ":" => Token::Column
     }
 }
@@ -30,7 +38,9 @@ pub Program: Vec<Statement> = {
 
 Stmt: Statement = {
     StmtPrint,
-    StmtVariableDeclaration
+    StmtVariableDeclaration,
+    StmtFunctionDeclaration,
+    CallStmt
 }
 
 StmtPrint: Statement = {
@@ -38,21 +48,82 @@ StmtPrint: Statement = {
 }
 
 StmtVariableDeclaration : Statement = {
-    "sit" <varname:"id"> ":" <vartype:"id"> <varvalue:Expr> => Statement::VariableDeclaration {
+    "sit" <varname:"id"> ":" <vartype:"id"?> <varvalue:Expr> => Statement::VariableDeclaration {
         value: varvalue,
-        variable_type: Some(Symbol::Name(vartype)),
+        variable_type: match vartype {
+            Some(type_id) => Some(Symbol::Name(type_id)),
+            None => None
+        },
         identifier: Symbol::Name(varname)
     }
 }
 
+StmtFunctionDeclaration : Statement = {
+    "fvnctio" <funcname:"id"> "(" <mut param_list: (<ParamDef> ",")*>
+        <last_param:ParamDef?> ")"
+        <return_type:FunctionReturnType?> <mut block:Program>
+        <return_stmt:ReturnStmt> => Statement::FunctionDeclaration {
+            identifier: Symbol::Name(funcname),
+            param_list: match last_param {
+                Some(param) => {
+                    param_list.push(param);
+                    param_list
+                },
+                None => param_list
+            },
+            return_type,
+            block: {
+                block.push(return_stmt);
+                Box::new(block)
+            }
+        }
+}
+
+ParamDef : Parameter = {
+    <name:"id"> ":" <param_type:"id"> => Parameter {
+            identifier: Symbol::Name(name),
+            param_type: Symbol::Name(param_type)
+        }
+}
+
+FunctionReturnType : Symbol = {
+    "=>" <"id"> => Symbol::Name(<>)
+}
+
+ReturnStmt : Statement = {
+    "reddi" <return_value:Expr?> => Statement::ReturnStatement {
+        return_value
+    }
+}
+
+CallStmt : Statement = {
+    "voc" <Expr> => Statement::Call {expression:<>}
+}
+
 Expr: Expression = {
     #[precedence(level="1")]
-    ExprValue
+    ExprValue,
+    #[precedence(level="2")]
+    FuncCall
 }
 
 ExprValue: Expression = {
     "catena" => Expression::StringValue {value: <>},
     "id" => Expression::Variable {identifier: Symbol::Name(<>)}
+}
+
+FuncCall: Expression = {
+    <name:"id"> "(" <mut args: (<Expr> ",")*> <last_arg:Expr?> ")" =>
+            Expression::FunctionCall {
+                identifier: Symbol::Name(name),
+                argument_list: match last_arg {
+                    Some(arg) => {
+                        args.push(arg);
+                        Box::new(args)
+                    },
+                    None => Box::new(args)
+                }
+            }
 }
 
 

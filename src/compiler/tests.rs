@@ -1,13 +1,10 @@
-use crate::parser::ast::{
+use crate::common::{
+    AnalyzedAst,
+    Symtable,
     Statement, 
     Expression,
-    Symbol
-};
-
-use crate::analyzer::{
-    AnalyzedAst,
-    resolver::Symtable,
-    type_checker::TiroType
+    Symbol,
+    TiroType
 };
 
 use super::{
@@ -28,7 +25,10 @@ fn print() {
                         value: "a".to_string()
                     }
             }],
-            symtable: Symtable {variable_table:vec![]}
+            symtable: Symtable {
+                variable_table:vec![],
+                function_table:vec![]
+            }
         }), (vec![HeapValue::StringValue("a".to_string())], vec![
             Opcode::Push(StackValue::HeapIndex(0)),
             Opcode::Print
@@ -53,7 +53,10 @@ fn variable_declaration() {
                         }
                 }
             ],
-            symtable: Symtable {variable_table:vec![Some(TiroType::StringType)]}
+            symtable: Symtable {
+                variable_table:vec![Some(TiroType::StringType)],
+                function_table:vec![]
+            }
         }), (vec![HeapValue::StringValue("a".to_string())], vec![
             Opcode::Push(StackValue::HeapIndex(0)),
             Opcode::Push(StackValue::LocalVar(LocalVar {

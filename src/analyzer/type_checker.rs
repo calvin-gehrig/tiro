@@ -1,12 +1,10 @@
-use crate::parser::ast::{
+use crate::common::{
+    ResolvedAst,
+    Symtable,
     Statement,
     Expression,
-    Symbol
-};
-
-use crate::analyzer::resolver::{
-    ResolvedAst,
-    Symtable
+    Symbol,
+    TiroType
 };
 
 mod error;
@@ -59,11 +57,6 @@ impl TypeChecker {
     fn assign_vartype(&mut self, id: usize, vartype: TiroType) {
         self.symtable.variable_table[id] = Some(vartype);
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TiroType {
-    StringType
 }
 
 fn check_statement(statement: &mut Statement, type_checker: &mut TypeChecker) {

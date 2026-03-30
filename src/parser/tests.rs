@@ -1,6 +1,7 @@
-use super::ast::{
+use crate::common::{
     Statement,
     Expression,
+    Parameter,
     Symbol
 };
 
@@ -46,6 +47,67 @@ fn print_variable() {
             }
         }
     ]);
+}
+
+#[test]
+fn function_declaration() {
+    assert_eq!(parse_test("fvnctio greet() echo \"Hello\" reddi"), vec![
+        Statement::FunctionDeclaration {
+            identifier: Symbol::Name("greet".to_string()),
+            param_list: vec![],
+            return_type: None,
+            block: Box::new(vec![
+                Statement::Print {
+                    value: Expression::StringValue {value: "Hello".to_string()}
+                },
+                Statement::ReturnStatement {
+                    return_value: None
+                }
+            ])
+        }
+    ]);
+}
+
+#[test]
+fn str_id_declaration() {
+    assert_eq!(parse_test("fvnctio str_id(a:cat, b:cat)=>cat reddi a"), vec![
+        Statement::FunctionDeclaration {
+            identifier: Symbol::Name("str_id".to_string()),
+            param_list: vec![
+                Parameter {
+                    identifier: Symbol::Name("a".to_string()),
+                    param_type: Symbol::Name("cat".to_string())
+                },
+                Parameter {
+                    identifier: Symbol::Name("b".to_string()),
+                    param_type: Symbol::Name("cat".to_string())
+                }
+            ],
+            return_type: Some(Symbol::Name("cat".to_string())),
+            block: Box::new(vec![
+                Statement::ReturnStatement {
+                    return_value: Some(Expression::Variable {
+                                          identifier: Symbol::Name("a".to_string())
+                    })
+                }
+            ])
+        }
+    ]);
+}
+
+#[test]
+fn function_call() {
+    assert_eq!(parse_test("voc a(\"a\")"), vec![
+        Statement::Call {
+            expression: Expression::FunctionCall {
+                identifier: Symbol::Name("a".to_string()),
+                argument_list: Box::new(vec![
+                    Expression::StringValue {
+                        value: "a".to_string()
+                    }
+                ])
+            }
+        }]);
 }
 
 #[test]

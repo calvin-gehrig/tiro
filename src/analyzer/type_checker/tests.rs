@@ -1,18 +1,13 @@
-use crate::parser::ast::{
+use crate::common::{
+    ResolvedAst,
+    Symtable,
     Statement,
     Expression,
-    Symbol
-};
-
-use super::{
-    type_check,
+    Symbol,
     TiroType
 };
 
-use crate::analyzer::resolver::{
-    ResolvedAst,
-    Symtable
-};
+use super::type_check;
 
 #[test]
 fn print () {
@@ -23,7 +18,8 @@ fn print () {
                 }
             ],
             symtable: Symtable {
-                variable_table: vec![]
+                variable_table: vec![],
+                function_table: vec![]
             },
             error_mode: false
     }).error_mode, false);
@@ -42,7 +38,8 @@ fn variable_assignment () {
                 }
             ],
             symtable: Symtable {
-                variable_table: vec![Some(TiroType::StringType)]
+                variable_table: vec![Some(TiroType::StringType)],
+                function_table: vec![]
             },
             error_mode: false
     }).error_mode, false);

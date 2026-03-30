@@ -14,6 +14,24 @@ pub enum Token {
     Echo,
     #[token("sit")]
     Sit,
+    #[token("fvnctio")]
+    Functio,
+    #[token("reddi")]
+    Reddi,
+    #[token("voc")]
+    Voc,
+    #[token("=>")]
+    RightArrow,
+    #[token("(")]
+    LeftParan,
+    #[token(")")]
+    RightParan,
+    #[token("{")]
+    LeftBrace,
+    #[token("}")]
+    RightBrace,
+    #[token(",")]
+    Comma,
     #[token(":")]
     Column,
     #[regex("[a-zA-Z_][a-zA-Z_0-9]*", parse_id)]

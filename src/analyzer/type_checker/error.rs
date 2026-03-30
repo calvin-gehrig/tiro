@@ -1,4 +1,4 @@
-use super::TiroType;
+use crate::common::TiroType;
 
 pub enum TypeCheckError {
     MismatchedTypeError(TypeError),

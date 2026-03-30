@@ -1,8 +1,7 @@
 use lalrpop_util::lalrpop_mod;
 use crate::lexer::Lexer;
 
-pub mod ast;
-use ast::Statement;
+use crate::common::Statement;
 
 lalrpop_mod!(parser, "/parser/grammar.rs");
 use parser::ProgramParser;

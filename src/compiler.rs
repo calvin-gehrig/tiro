@@ -1,15 +1,12 @@
 use std::collections::HashMap;
 
-use crate::parser::ast::{
+use crate::common::{
+    AnalyzedAst,
+    Symtable,
     Statement,
     Expression,
-    Symbol
-};
-
-use crate::analyzer::{
-    AnalyzedAst,
-    resolver::Symtable,
-    type_checker::TiroType
+    Symbol,
+    TiroType
 };
 
 #[cfg(test)]

@@ -1,6 +1,8 @@
 use std::env;
 use std::fs;
 
+mod common;
+
 mod lexer;
 use lexer::Lexer;
 

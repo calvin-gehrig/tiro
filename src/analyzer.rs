@@ -1,18 +1,13 @@
-use crate::parser::ast::Statement;
+use crate::common::{
+    AnalyzedAst,
+    Statement
+};
 
 pub mod resolver;
-use resolver::{
-    resolve,
-    Symtable
-};
+use resolver::resolve;
 
 pub mod type_checker;
 use type_checker::type_check;
-
-pub struct AnalyzedAst {
-    pub symtable: Symtable,
-    pub ast: Vec<Statement>
-}
 
 pub fn analyze(ast: Vec<Statement>) -> AnalyzedAst {
     let resolved_ast = resolve(ast);
