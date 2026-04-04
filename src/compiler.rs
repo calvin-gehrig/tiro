@@ -1,128 +1,115 @@
 use std::collections::HashMap;
+use std::mem;
 
 use crate::common::{
     AnalyzedAst,
     Symtable,
     Statement,
     Expression,
-    Symbol,
-    TiroType
+    Function,
+    LocalVariable,
+    Type
 };
 
 #[cfg(test)]
 mod tests;
 
-enum UpperStackEnv {
-    EOE,
-    Env(Box<StackEnv>)
-}
-
-struct StackEnv {
-    current_environment: HashMap<usize, usize>,
-    local_count: usize,
-    upper_environment: UpperStackEnv
-}
-
-impl StackEnv {
-    fn push_local (&mut self, id: usize) {
-        self.current_environment.insert(id, self.local_count);
-        self.local_count += 1;
-    }
-
-    fn get_local (&self, id: usize, depth: usize) -> LocalVar {
-        let maybe_index = self.current_environment.get(&id).copied();
-        match maybe_index {
-            None => if let UpperStackEnv::Env(upper_env) = &self.upper_environment {
-                    upper_env.get_local(id, depth + 1)
-                } else { panic!("Uninitialized local variable") },
-            Some(index) => LocalVar { index, depth }
-        }
-    }
-}
-
 struct Compiler {
-    bytecode: Vec<Opcode>,
-    heap: Vec<HeapValue>,
+    main_program: Vec<Opcode>,
+    string_pool: Vec<String>,
+    function_pool: Vec<Vec<Opcode>>,
     symtable: Symtable,
-    local_env: StackEnv
+    current_function: Option<usize>,
+    upper_functions: Vec<usize>
 }
 
 impl Compiler {
     fn new (symtable: Symtable) -> Self {
         Self {
-            bytecode: Vec::new(),
-            heap: Vec::new(),
-            local_env: StackEnv {
-                current_environment: HashMap::new(),
-                local_count: 0,
-                upper_environment: UpperStackEnv::EOE
-            },
+            main_program: Vec::new(),
+            string_pool: Vec::new(),
+            function_pool: Vec::new(),
+            current_function: None,
+            upper_functions: Vec::new(),
             symtable
         }
     }
 
     fn push_opcode(&mut self, opcode: Opcode) {
-        self.bytecode.push(opcode);
+        match self.current_function {
+            None => self.main_program.push(opcode),
+            Some(id) => self.function_pool[id].push(opcode)
+        }
     }
 
-    fn push_heap(&mut self, value: HeapValue) -> usize {
-        self.heap.push(value);
-        self.heap.len() - 1
+    fn push_string(&mut self, string: String) -> usize {
+        self.string_pool.push(string);
+        self.string_pool.len() - 1
     }
 
-    fn return_bytecode(self) -> (Vec<HeapValue>, Vec<Opcode>) {
-        (self.heap, self.bytecode)
+    fn get_local(&self, id: usize) -> usize {
+        let variable = &self.symtable.variable_table[id];
+        variable.index
     }
 
-    fn register_local(&mut self, id: usize) {
-        self.local_env.push_local(id);
+    fn start_function(&mut self) {
+        self.function_pool.push(Vec::new());
+        if let Some(mut upper_function) = self.current_function {
+            self.upper_functions.push(mem::take(&mut upper_function));
+        }
+        self.current_function = Some(self.function_pool.len() - 1);
     }
 
-    fn get_local(&self, id: usize) -> LocalVar {
-        self.local_env.get_local(id, 0)
+    fn end_function(&mut self) {
+        self.current_function = self.upper_functions.pop();
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Opcode {
     Push(StackValue),
+    Pop,
+    Call(usize, usize),
+    Return,
     Print
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StackValue {
-    HeapIndex(usize),
-    LocalVar(LocalVar),
+    StringIndex(usize),
+    LocalVar(usize, usize),
     UpperFrame(usize),
+    UpperFunction(Option<usize>),
+    Null,
     EOS
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LocalVar {
-    pub index: usize,
-    pub depth: usize
+pub struct CompiledProgram {
+    pub main_program: Vec<Opcode>,
+    pub function_pool: Vec<Vec<Opcode>>,
+    pub string_pool: Vec<String>
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum HeapValue {
-    StringValue(String)
-}
-
-pub fn compile(analyzed_ast: AnalyzedAst) -> (Vec<HeapValue>, Vec<Opcode>) {
+pub fn compile(analyzed_ast: AnalyzedAst) -> CompiledProgram {
     let mut compiler = Compiler::new(analyzed_ast.symtable);
     for statement in analyzed_ast.ast {
         compile_statement(statement, &mut compiler);
     }
-    compiler.return_bytecode()
+    CompiledProgram {
+        main_program: compiler.main_program,
+        function_pool: compiler.function_pool,
+        string_pool: compiler.string_pool
+    }
 }
 
 fn compile_statement(statement: Statement, compiler: &mut Compiler) {
     match statement {
         Statement::Print {value} => compile_print(value, compiler),
-        Statement::VariableAssignment {
-            value,
-            identifier
-        } => compile_variable_assignment(value, identifier, compiler),
+        Statement::VariableAssignment {value, ..} => compile_expression(value, compiler),
+        Statement::FunctionDefinition {block, ..} => compile_function_definition(*block, compiler),
+        Statement::ResolvedReturn { return_value,.. } => compile_return_statement(return_value, compiler),
+        Statement::Call {expression} => compile_call(expression, compiler),
         _ => panic!("Unsupported statement type")
     }
 }
@@ -132,29 +119,50 @@ fn compile_print(value: Expression, compiler: &mut Compiler) {
     compiler.push_opcode(Opcode::Print);
 }
 
-fn compile_variable_assignment(value: Expression, identifier: Symbol, compiler: &mut Compiler) {
-    compile_expression(value, compiler);
-    if let Symbol::Id(id) = identifier {
-        compiler.register_local(id);
-    } else { panic!("Unexpected unresolved identifier") }
+fn compile_function_definition(block: Vec<Statement>, compiler: &mut Compiler) {
+    compiler.start_function();
+    for statement in block {
+        compile_statement(statement, compiler);
+    }
+    compiler.end_function();
+}
+
+fn compile_return_statement (return_value: Option<Expression>, compiler: &mut Compiler) {
+    match return_value {
+        Some(value) => compile_expression(value, compiler),
+        None => compiler.push_opcode(Opcode::Push(StackValue::Null))
+    }
+    compiler.push_opcode(Opcode::Return);
+}
+
+fn compile_call (expression: Expression, compiler: &mut Compiler) {
+    compile_expression(expression, compiler);
+    compiler.push_opcode(Opcode::Pop);
 }
 
 fn compile_expression(expression: Expression, compiler: &mut Compiler) {
     match expression {
         Expression::StringValue {value} => compile_string(value, compiler),
-        Expression::Variable {identifier} => compile_variable(identifier, compiler),
+        Expression::LocalVar {id, depth} => compile_variable(id, depth, compiler),
+        Expression::ResolvedFunctionCall {id, argument_list} => compile_function_call(id, *argument_list, compiler),
         _ => panic!("Unsupported expression type")
     }
 }
 
-fn compile_string(value: String, compiler: &mut Compiler) {
-    let index = compiler.push_heap(HeapValue::StringValue(value));
-    compiler.push_opcode(Opcode::Push(StackValue::HeapIndex(index)));
+fn compile_string(string: String, compiler: &mut Compiler) {
+    let index = compiler.push_string(string);
+    compiler.push_opcode(Opcode::Push(StackValue::StringIndex(index)));
 }
 
-fn compile_variable(identifier: Symbol, compiler: &mut Compiler) {
-    if let Symbol::Id(id) = identifier {
-        let local_var = compiler.get_local(id);
-        compiler.push_opcode(Opcode::Push(StackValue::LocalVar(local_var)));
-    } else { panic!("Unexpected unresolved identifier") }
+fn compile_variable(id: usize, depth: usize, compiler: &mut Compiler) {
+        let index = compiler.get_local(id);
+        compiler.push_opcode(Opcode::Push(StackValue::LocalVar(index, depth)));
+}
+
+fn compile_function_call(id: usize, argument_list: Vec<Expression>, compiler: &mut Compiler) {
+    let arity = argument_list.len();
+    for argument in argument_list {
+        compile_expression(argument, compiler);
+    }
+    compiler.push_opcode(Opcode::Call(id, arity));
 }

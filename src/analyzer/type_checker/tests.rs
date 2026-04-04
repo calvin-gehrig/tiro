@@ -5,8 +5,8 @@ use crate::common::{
     Expression,
     ParamType,
     Function,
-    Symbol,
-    TiroType
+    LocalVariable,
+    Type
 };
 
 use super::{
@@ -53,14 +53,18 @@ fn variable_assignment () {
             ast: vec![
                 Statement::VariableAssignment {
                     value: Expression::StringValue {value: "a".to_string()},
-                    identifier: Symbol::Id(0)
+                    identifier: 0
                 },
                 Statement::Print {
-                    value: Expression::Variable {identifier: Symbol::Id(0)}
+                    value: Expression::LocalVar {id: 0, depth: 0}
                 }
             ],
             symtable: Symtable {
-                variable_table: vec![Some(TiroType::StringType)],
+                variable_table: vec![LocalVariable {
+                    vartype: Some(Type::StringType),
+                    identifier: "a".to_string(),
+                    index: 0
+                }],
                 function_table: vec![]
             },
             error_mode: false
@@ -72,19 +76,20 @@ fn function_declaration() {
     assert_eq!(type_check(ResolvedAst {
         ast: vec![
             Statement::FunctionDefinition {
-                identifier: Symbol::Id(0),
+                identifier: 0,
                 block: Box::new(vec![
-                    Statement::ReturnStatement {
-                        return_value: Some(Expression::Variable {
-                            identifier: Symbol::Id(1),
+                    Statement::ResolvedReturn {
+                        return_value: Some(Expression::LocalVar {
+                            id: 1,
+                            depth: 0
                         }),
-                        function: Symbol::Id(0)
+                        function: 0
                     }
                 ])
             },
             Statement::Call {
-            expression: Expression::FunctionCall {
-                identifier: Symbol::Id(0),
+            expression: Expression::ResolvedFunctionCall {
+                id: 0,
                 argument_list: Box::new(vec![
                     Expression::StringValue {value:"pff".to_string()},
                     Expression::StringValue {value:"aah".to_string()}
@@ -93,19 +98,28 @@ fn function_declaration() {
         }],
         symtable: Symtable {
             variable_table: vec![
-                Some(TiroType::StringType),
-                Some(TiroType::StringType)
+                LocalVariable {
+                    vartype: Some(Type::StringType),
+                    identifier: "a".to_string(),
+                    index: 0
+                },
+                LocalVariable {
+                    vartype: Some(Type::StringType),
+                    identifier: "b".to_string(),
+                    index: 1
+                }
             ],
             function_table: vec![Function {
-                return_type: Some(TiroType::StringType),
+                identifier: "select".to_string(),
+                return_type: Some(Type::StringType),
                 param_list: vec![
                     ParamType {
-                        identifier: Symbol::Id(0),
-                        param_type: TiroType::StringType
+                        identifier: "a".to_string(),
+                        param_type: Type::StringType
                     },
                     ParamType {
-                        identifier: Symbol::Id(1),
-                        param_type: TiroType::StringType
+                        identifier: "b".to_string(),
+                        param_type: Type::StringType
                     }
                 ]
             }]
@@ -119,26 +133,28 @@ fn value_returned_on_null() {
     assert_eq!(type_check(ResolvedAst {
         ast: vec![
             Statement::FunctionDefinition {
-                identifier: Symbol::Id(0),
+                identifier: 0,
                 block: Box::new(vec![
-                    Statement::ReturnStatement {
+                    Statement::ResolvedReturn {
                         return_value: Some(Expression::StringValue {
                             value: "error".to_string(),
                         }),
-                        function: Symbol::Id(0)
+                        function: 0
                     }
                 ])
             }],
         symtable: Symtable {
             variable_table: vec![],
             function_table: vec![Function {
+                identifier: "null".to_string(),
                 return_type: None,
                 param_list: vec![]
             }]
         },
         error_mode: false
     }), Some(TypeCheckError::ReturnError(
-            ReturnErr::ValueReturnedOnNull)));
+            ReturnErr::ValueReturnedOnNull("null".to_string())
+        )));
 }
 
 #[test]
@@ -146,24 +162,26 @@ fn null_returned_on_value() {
     assert_eq!(type_check(ResolvedAst {
         ast: vec![
             Statement::FunctionDefinition {
-                identifier: Symbol::Id(0),
+                identifier: 0,
                 block: Box::new(vec![
-                    Statement::ReturnStatement {
+                    Statement::ResolvedReturn {
                         return_value: None,
-                        function: Symbol::Id(0)
+                        function: 0
                     }
                 ])
             }],
         symtable: Symtable {
             variable_table: vec![],
             function_table: vec![Function {
-                return_type: Some(TiroType::StringType),
+                identifier: "str".to_string(),
+                return_type: Some(Type::StringType),
                 param_list: vec![]
             }]
         },
         error_mode: false
     }), Some(TypeCheckError::ReturnError(
-            ReturnErr::NullReturnedOnValue)));
+            ReturnErr::NullReturnedOnValue("str".to_string())
+        )));
 }
 
 #[test]
@@ -171,17 +189,17 @@ fn arity_error() {
     assert_eq!(type_check(ResolvedAst {
         ast: vec![
             Statement::FunctionDefinition {
-                identifier: Symbol::Id(0),
+                identifier: 0,
                 block: Box::new(vec![
-                    Statement::ReturnStatement {
+                    Statement::ResolvedReturn {
                         return_value: None,
-                        function: Symbol::Id(0)
+                        function: 0
                     }
                 ])
             },
             Statement::Call {
-            expression: Expression::FunctionCall {
-                identifier: Symbol::Id(0),
+            expression: Expression::ResolvedFunctionCall {
+                id: 0,
                 argument_list: Box::new(vec![
                     Expression::StringValue {value:"pff".to_string()},
                     Expression::StringValue {value:"aah".to_string()}
@@ -190,18 +208,26 @@ fn arity_error() {
         }],
         symtable: Symtable {
             variable_table: vec![
-                Some(TiroType::StringType),
+                LocalVariable {
+                    vartype: Some(Type::StringType),
+                    identifier: "a".to_string(),
+                    index: 0
+                }
             ],
             function_table: vec![Function {
+                identifier: "id".to_string(),
                 return_type: None,
                 param_list: vec![
                     ParamType {
-                        identifier: Symbol::Id(0),
-                        param_type: TiroType::StringType
+                        identifier: "a".to_string(),
+                        param_type: Type::StringType
                     }
                 ]
             }]
         },
         error_mode: false
-    }), Some(TypeCheckError::ArityError(1, 2)));
+    }), Some(TypeCheckError::ArityError(
+        "id".to_string(),
+        1, 2
+        )));
 }

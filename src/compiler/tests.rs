@@ -3,16 +3,16 @@ use crate::common::{
     Symtable,
     Statement, 
     Expression,
-    Symbol,
-    TiroType
+    Function,
+    LocalVariable,
+    Type
 };
 
 use super::{
     compile,
+    CompiledProgram,
     Opcode,
-    HeapValue,
-    StackValue,
-    LocalVar
+    StackValue
 };
 
 #[test]
@@ -29,10 +29,15 @@ fn print() {
                 variable_table:vec![],
                 function_table:vec![]
             }
-        }), (vec![HeapValue::StringValue("a".to_string())], vec![
-            Opcode::Push(StackValue::HeapIndex(0)),
-            Opcode::Print
-    ]));
+        }), 
+        CompiledProgram {
+            main_program: vec![
+                Opcode::Push(StackValue::StringIndex(0)),
+                Opcode::Print
+            ],
+            string_pool: vec!["a".to_string()],
+            function_pool: vec![]
+        });
 }
 
 #[test]
@@ -44,25 +49,31 @@ fn variable_declaration() {
                         Expression::StringValue {
                             value: "a".to_string()
                         },
-                    identifier: Symbol::Id(0)
+                    identifier: 0
                 },
                 Statement::Print {
                     value:
-                        Expression::Variable {
-                            identifier: Symbol::Id(0)
+                        Expression::LocalVar {
+                            id: 0,
+                            depth: 0
                         }
                 }
             ],
             symtable: Symtable {
-                variable_table:vec![Some(TiroType::StringType)],
+                variable_table:vec![LocalVariable {
+                    vartype: Some(Type::StringType),
+                    identifier: "a".to_string(),
+                    index: 0
+                }],
                 function_table:vec![]
             }
-        }), (vec![HeapValue::StringValue("a".to_string())], vec![
-            Opcode::Push(StackValue::HeapIndex(0)),
-            Opcode::Push(StackValue::LocalVar(LocalVar {
-                index: 0,
-                depth: 0
-            })),
-            Opcode::Print
-    ]));
+        }), CompiledProgram {
+                main_program: vec![
+                    Opcode::Push(StackValue::StringIndex(0)),
+                    Opcode::Push(StackValue::LocalVar(0, 0)),
+                    Opcode::Print
+                ],
+                string_pool: vec!["a".to_string()],
+                function_pool: vec![]
+        });
 }

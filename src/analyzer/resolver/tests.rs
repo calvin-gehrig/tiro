@@ -3,22 +3,24 @@ use crate::common::{
     Symtable,
     Statement,
     Expression,
-    Symbol,
     Parameter,
     ParamType,
     Function,
-    TiroType
+    LocalVariable,
+    Type
 };
 
 use super::{
     Resolver,
     resolve,
     resolve_block,
+    register_global,
     error::ReferenceError
 };
 
 fn resolve_error(ast: Vec<Statement>) -> Vec<ReferenceError> {
     let mut resolver = Resolver::new();
+    register_global(&ast, &mut resolver);
     resolve_block(ast, &mut resolver);
     resolver.error_stack
 }
@@ -28,28 +30,33 @@ fn variable() {
     assert_eq!(resolve(vec![
         Statement::VariableDeclaration {
             value: Expression::StringValue {value:"a".to_string()},
-            identifier: Symbol::Name("a".to_string()),
-            variable_type: Some(Symbol::Name("cat".to_string()))
+            identifier: "a".to_string(),
+            variable_type: Some("cat".to_string())
         },
         Statement::Print {
             value: Expression::Variable {
-                identifier:Symbol::Name("a".to_string())
+                identifier: "a".to_string()
             }
         }
     ]), ResolvedAst {
         ast: vec![
             Statement::VariableAssignment {
                 value: Expression::StringValue {value:"a".to_string()},
-                identifier: Symbol::Id(0)
+                identifier: 0
             },
             Statement::Print {
-                value: Expression::Variable {
-                    identifier:Symbol::Id(0)
+                value: Expression::LocalVar {
+                    id: 0,
+                    depth: 0
                 }
             }
         ],
         symtable: Symtable {
-            variable_table: vec![Some(TiroType::StringType)],
+            variable_table: vec![LocalVariable {
+                vartype: Some(Type::StringType),
+                identifier: "a".to_string(),
+                index: 0
+            }],
             function_table: vec![]
         },
         error_mode: false
@@ -60,29 +67,29 @@ fn variable() {
 fn function() {
     assert_eq!(resolve(vec![
         Statement::FunctionDeclaration {
-            identifier: Symbol::Name("select".to_string()),
-            return_type: Some(Symbol::Name("cat".to_string())),
+            identifier: "select".to_string(),
+            return_type: Some("cat".to_string()),
             param_list: vec![
                 Parameter {
-                    identifier: Symbol::Name("a".to_string()),
-                    param_type: Symbol::Name("cat".to_string())
+                    identifier: "a".to_string(),
+                    param_type: "cat".to_string()
                 },
                 Parameter {
-                    identifier: Symbol::Name("b".to_string()),
-                    param_type: Symbol::Name("cat".to_string())
+                    identifier: "b".to_string(),
+                    param_type: "cat".to_string()
                 }
             ],
             block: Box::new(vec![
                 Statement::ReturnStatement {
                     return_value: Some(Expression::Variable {
-                        identifier: Symbol::Name("b".to_string()),
+                        identifier: "b".to_string(),
                     }),
-                    function: Symbol::Name("select".to_string())
+                    function: "select".to_string()
                 }])
         },
         Statement::Call {
             expression: Expression::FunctionCall {
-                identifier: Symbol::Name("select".to_string()),
+                identifier: "select".to_string(),
                 argument_list: Box::new(vec![
                     Expression::StringValue {value:"pff".to_string()},
                     Expression::StringValue {value:"aah".to_string()}
@@ -92,19 +99,20 @@ fn function() {
     ]), ResolvedAst {
         ast: vec![
             Statement::FunctionDefinition {
-                identifier: Symbol::Id(0),
+                identifier: 0,
                 block: Box::new(vec![
-                    Statement::ReturnStatement {
-                        return_value: Some(Expression::Variable {
-                            identifier: Symbol::Id(1),
+                    Statement::ResolvedReturn {
+                        return_value: Some(Expression::LocalVar {
+                            id: 1,
+                            depth: 0
                         }),
-                        function: Symbol::Id(0)
+                        function: 0
                     }
                 ])
             },
             Statement::Call {
-            expression: Expression::FunctionCall {
-                identifier: Symbol::Id(0),
+            expression: Expression::ResolvedFunctionCall {
+                id: 0,
                 argument_list: Box::new(vec![
                     Expression::StringValue {value:"pff".to_string()},
                     Expression::StringValue {value:"aah".to_string()}
@@ -113,19 +121,28 @@ fn function() {
         }],
         symtable: Symtable {
             variable_table: vec![
-                Some(TiroType::StringType),
-                Some(TiroType::StringType)
+                LocalVariable {
+                    vartype: Some(Type::StringType),
+                    identifier: "a".to_string(),
+                    index: 0
+                },
+                LocalVariable {
+                    vartype: Some(Type::StringType),
+                    identifier: "b".to_string(),
+                    index: 1
+                }
             ],
             function_table: vec![Function {
-                return_type: Some(TiroType::StringType),
+                identifier: "select".to_string(),
+                return_type: Some(Type::StringType),
                 param_list: vec![
                     ParamType {
-                        identifier: Symbol::Id(0),
-                        param_type: TiroType::StringType
+                        identifier: "a".to_string(),
+                        param_type: Type::StringType
                     },
                     ParamType {
-                        identifier: Symbol::Id(1),
-                        param_type: TiroType::StringType
+                        identifier: "b".to_string(),
+                        param_type: Type::StringType
                     }
                 ]
             }]
@@ -138,47 +155,48 @@ fn function() {
 fn recursive_function() {
     assert_eq!(resolve(vec![
         Statement::FunctionDeclaration {
-            identifier: Symbol::Name("rec".to_string()),
+            identifier: "recur".to_string(),
             return_type: None,
             param_list: vec![],
             block: Box::new(vec![
                 Statement::ReturnStatement {
                     return_value: Some(Expression::FunctionCall {
-                        identifier: Symbol::Name("rec".to_string()),
+                        identifier: "recur".to_string(),
                         argument_list: Box::new(vec![])
                     }),
-                    function: Symbol::Name("rec".to_string())
+                    function: "recur".to_string()
                 }])
         },
         Statement::Call {
             expression: Expression::FunctionCall {
-                identifier: Symbol::Name("rec".to_string()),
+                identifier: "recur".to_string(),
                 argument_list: Box::new(vec![])
             }
         }
     ]), ResolvedAst {
         ast: vec![
             Statement::FunctionDefinition {
-                identifier: Symbol::Id(0),
+                identifier: 0,
                 block: Box::new(vec![
-                    Statement::ReturnStatement {
-                        return_value: Some(Expression::FunctionCall {
-                            identifier: Symbol::Id(0),
+                    Statement::ResolvedReturn {
+                        return_value: Some(Expression::ResolvedFunctionCall {
+                            id: 0,
                             argument_list: Box::new(vec![])
                         }),
-                        function: Symbol::Id(0)
+                        function: 0
                     }
                 ])
             },
             Statement::Call {
-            expression: Expression::FunctionCall {
-                identifier: Symbol::Id(0),
+            expression: Expression::ResolvedFunctionCall {
+                id: 0,
                 argument_list: Box::new(vec![])
             }
         }],
         symtable: Symtable {
             variable_table: vec![],
             function_table: vec![Function {
+                identifier: "recur".to_string(),
                 return_type: None,
                 param_list: vec![]
             }]
@@ -193,7 +211,7 @@ fn variable_error() {
     assert_eq!(resolve_error(vec![
             Statement::Print {
                 value: Expression::Variable {
-                    identifier:Symbol::Name("a".to_string())
+                    identifier:"a".to_string()
                 }
             }
     ]), vec![ReferenceError::UndefinedVariableName("a".to_string())]);
@@ -203,29 +221,29 @@ fn variable_error() {
 fn symbol_as_variable_error() {
     assert_eq!(resolve_error(vec![
         Statement::FunctionDeclaration {
-            identifier: Symbol::Name("select".to_string()),
-            return_type: Some(Symbol::Name("cat".to_string())),
+            identifier: "select".to_string(),
+            return_type: Some("cat".to_string()),
             param_list: vec![
                 Parameter {
-                    identifier: Symbol::Name("a".to_string()),
-                    param_type: Symbol::Name("cat".to_string())
+                    identifier: "a".to_string(),
+                    param_type: "cat".to_string()
                 },
                 Parameter {
-                    identifier: Symbol::Name("b".to_string()),
-                    param_type: Symbol::Name("cat".to_string())
+                    identifier: "b".to_string(),
+                    param_type: "cat".to_string()
                 }
             ],
             block: Box::new(vec![
                 Statement::ReturnStatement {
                     return_value: Some(Expression::Variable {
-                        identifier: Symbol::Name("b".to_string())
+                        identifier: "b".to_string()
                     }),
-                    function: Symbol::Name("select".to_string())
+                    function: "select".to_string()
                 }])
         },
         Statement::Call {
             expression: Expression::Variable {
-                identifier: Symbol::Name("select".to_string()),
+                identifier: "select".to_string()
             }
         }
     ]), vec![ReferenceError::InvalidSymbolUseAsVariable("select".to_string())]);
@@ -235,7 +253,7 @@ fn symbol_as_variable_error() {
 fn function_error() {
     assert_eq!(resolve_error(vec![Statement::Call {
             expression: Expression::FunctionCall {
-                identifier: Symbol::Name("select".to_string()),
+                identifier: "select".to_string(),
                 argument_list: Box::new(vec![
                     Expression::StringValue {value:"pff".to_string()},
                     Expression::StringValue {value:"aah".to_string()}
@@ -249,12 +267,12 @@ fn symbol_as_function_error() {
     assert_eq!(resolve_error(vec![
             Statement::VariableDeclaration {
                 value: Expression::StringValue {value:"a".to_string()},
-                identifier: Symbol::Name("a".to_string()),
-                variable_type: Some(Symbol::Name("cat".to_string()))
+                identifier: "a".to_string(),
+                variable_type: Some("cat".to_string())
             },
             Statement::Call {
                 expression: Expression::FunctionCall {
-                    identifier: Symbol::Name("a".to_string()),
+                    identifier: "a".to_string(),
                     argument_list: Box::new(vec![])
                 }
             }
@@ -266,8 +284,8 @@ fn type_error() {
     assert_eq!(resolve_error(vec![
             Statement::VariableDeclaration {
                 value: Expression::StringValue {value:"a".to_string()},
-                identifier: Symbol::Name("a".to_string()),
-                variable_type: Some(Symbol::Name("ouh".to_string()))
+                identifier: "a".to_string(),
+                variable_type: Some("ouh".to_string())
             }
     ]), vec![ReferenceError::UndefinedTypeName("ouh".to_string())]);
 }

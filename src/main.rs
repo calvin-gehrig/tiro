@@ -24,6 +24,6 @@ fn main() {
     let lexer = Lexer::new(&src);
     let ast = parse(lexer);
     let analyzed_ast = analyze(ast);
-    let bytecode = compile(analyzed_ast);
-    interpret(bytecode);
+    let compiled_program = compile(analyzed_ast);
+    interpret(compiled_program);
 }

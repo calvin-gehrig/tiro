@@ -1,8 +1,7 @@
 use crate::common::{
     Statement,
     Expression,
-    Parameter,
-    Symbol
+    Parameter
 };
 
 use crate::lexer::Lexer;
@@ -32,8 +31,8 @@ fn variableDeclaration() {
             value: Expression::StringValue {
                 value: "a".to_string()
             },
-            identifier: Symbol::Name("_a1".to_string()),
-            variable_type: Some(Symbol::Name("cat".to_string()))
+            identifier: "_a1".to_string(),
+            variable_type: Some("cat".to_string())
         }
     ]);
 }
@@ -43,7 +42,7 @@ fn print_variable() {
     assert_eq!(parse_test("echo a"), vec![
         Statement::Print {
             value: Expression::Variable {
-                identifier: Symbol::Name("a".to_string())
+                identifier: "a".to_string()
             }
         }
     ]);
@@ -53,7 +52,7 @@ fn print_variable() {
 fn function_declaration() {
     assert_eq!(parse_test("fvnctio greet() echo \"Hello\" reddi"), vec![
         Statement::FunctionDeclaration {
-            identifier: Symbol::Name("greet".to_string()),
+            identifier: "greet".to_string(),
             param_list: vec![],
             return_type: None,
             block: Box::new(vec![
@@ -62,7 +61,7 @@ fn function_declaration() {
                 },
                 Statement::ReturnStatement {
                     return_value: None,
-                    function: Symbol::Name("greet".to_string())
+                    function: "greet".to_string()
                 }
             ])
         }
@@ -73,24 +72,24 @@ fn function_declaration() {
 fn str_id_declaration() {
     assert_eq!(parse_test("fvnctio str_id(a:cat, b:cat)=>cat reddi a"), vec![
         Statement::FunctionDeclaration {
-            identifier: Symbol::Name("str_id".to_string()),
+            identifier: "str_id".to_string(),
             param_list: vec![
                 Parameter {
-                    identifier: Symbol::Name("a".to_string()),
-                    param_type: Symbol::Name("cat".to_string())
+                    identifier: "a".to_string(),
+                    param_type: "cat".to_string()
                 },
                 Parameter {
-                    identifier: Symbol::Name("b".to_string()),
-                    param_type: Symbol::Name("cat".to_string())
+                    identifier: "b".to_string(),
+                    param_type: "cat".to_string()
                 }
             ],
-            return_type: Some(Symbol::Name("cat".to_string())),
+            return_type: Some("cat".to_string()),
             block: Box::new(vec![
                 Statement::ReturnStatement {
                     return_value: Some(Expression::Variable {
-                                          identifier: Symbol::Name("a".to_string())
+                                          identifier: "a".to_string()
                     }),
-                    function: Symbol::Name("str_id".to_string())
+                    function: "str_id".to_string()
                 }
             ])
         }
@@ -102,7 +101,7 @@ fn function_call() {
     assert_eq!(parse_test("voc a(\"a\")"), vec![
         Statement::Call {
             expression: Expression::FunctionCall {
-                identifier: Symbol::Name("a".to_string()),
+                identifier: "a".to_string(),
                 argument_list: Box::new(vec![
                     Expression::StringValue {
                         value: "a".to_string()

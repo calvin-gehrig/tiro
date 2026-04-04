@@ -9,8 +9,8 @@ use crate::common::{
     Parameter,
     ParamType,
     Function,
-    Symbol,
-    TiroType
+    LocalVariable,
+    Type
 };
 
 mod error;
@@ -28,28 +28,34 @@ enum Reference {
 #[derive(Default)]
 struct Environment {
     current_environment: HashMap<String, Reference>,
+    local_depth: usize,
+    local_count: usize,
     upper_environment: UpperEnv
 }
 
 impl Environment {
     fn push_ref(&mut self, name: String, reference: Reference) {
-       self.current_environment.insert(name, reference);
+        self.local_count += 1;
+        self.current_environment.insert(name, reference);
     }
 
-    fn get_id(&self, name: &String) -> Option<Reference> {
-        let mut index = self.current_environment.get(name).cloned();
-        if index.is_none() {
-            if let UpperEnv::Env(upper_environment) = &self.upper_environment {
-                index = upper_environment.get_id(name);
-            }
+    fn get_id(&self, name: &String, depth: usize) -> Option<(Reference, usize)> {
+        let mut maybe_index = self.current_environment.get(name).cloned();
+        match maybe_index {
+            None => if let UpperEnv::Env(upper_environment) = &self.upper_environment {
+                upper_environment.get_id(name, depth + 1)
+                } else { None },
+            Some(index) => Some((index, depth))
         }
-        index
     }
 
-    fn open_scope(&mut self) {
+    fn open_scope(&mut self, is_function: bool) {
         let upper_environment = mem::take(self);
         *self = Environment {
             current_environment: HashMap::new(),
+            local_depth: if is_function { 0 } else {
+                upper_environment.local_depth + 1 },
+            local_count: 0,
             upper_environment: UpperEnv::Env(Box::new(upper_environment))
         }
     }
@@ -80,6 +86,8 @@ impl Resolver {
         Self {
             environment: Environment {
                 current_environment: HashMap::new(),
+                local_depth: 0,
+                local_count: 0,
                 upper_environment: UpperEnv::EOE
             },
             symtable: Symtable {
@@ -91,43 +99,43 @@ impl Resolver {
         }
     }
 
-    fn resolve_type(&self, maybe_type_symbol: Option<Symbol>) -> Result<Option<TiroType>, ReferenceError> {
-        match maybe_type_symbol {
-            Some(type_symbol) => if let Symbol::Name(type_name) = type_symbol {
+    fn resolve_type(&self, maybe_type_name: Option<String>) -> Result<Option<Type>, ReferenceError> {
+        match maybe_type_name {
+            Some(type_name) => {
                     match type_name.as_str() {
-                        "cat" => Ok(Some(TiroType::StringType)),
+                        "cat" => Ok(Some(Type::StringType)),
                         _ => Err(ReferenceError::UndefinedTypeName(type_name))
                     }
-                } else { panic!("Unexpected resolved type") },
+            },
             None => Ok(None)
         }
     }
 
-    fn declare_variable(&mut self, symbol: Symbol, variable_type: Option<TiroType>) -> usize {
-        if let Symbol::Name(name) = symbol {
-            self.symtable.variable_table.push(variable_type);
-            let index = self.symtable.variable_table.len() - 1;
-            self.environment.push_ref(name, Reference::Variable(index));
-            index
-        } else { panic!("Unexpected resolved variable") }
+    fn declare_variable(&mut self, name: String, variable_type: Option<Type>) -> usize {
+        let variable = LocalVariable {
+            vartype: variable_type,
+            identifier: name.clone(),
+            index: self.environment.local_count
+        };
+        self.symtable.variable_table.push(variable);
+        let index = self.symtable.variable_table.len() - 1;
+        self.environment.push_ref(name, Reference::Variable(index));
+        index
     }
 
-    fn register_function(&mut self, symbol: Symbol) -> usize {
-        if let Symbol::Name(name) = symbol {
-            let empty_function = Function {
-                return_type: None,
-                param_list: vec![]
-            };
-            self.symtable.function_table.push(empty_function);
-            let index = self.symtable.function_table.len() - 1;
-            self.environment.push_ref(name, Reference::Function(index));
-            index
-        } else { panic!("Unexpected resolved function") }
+    fn register_function(&mut self, name: String) {
+        let empty_function = Function {
+            identifier: name.clone(),
+            return_type: None,
+            param_list: vec![]
+        };
+        self.symtable.function_table.push(empty_function);
+        self.environment.push_ref(name, Reference::Function(self.symtable.function_table.len() - 1));
     }
 
     fn declare_function(&mut self,
         index: usize,
-        return_type: Option<TiroType>,
+        return_type: Option<Type>,
         param_list: Vec<ParamType>
     ) {
         let maybe_function = self.symtable.function_table.get_mut(index);
@@ -137,34 +145,30 @@ impl Resolver {
         } else { panic!("Corrupted function index") }
 }
 
-    fn resolve_variable(&self, symbol: Symbol) -> Result<usize, ReferenceError> {
-        if let Symbol::Name(name) = symbol {
-            match self.environment.get_id(&name) {
-                Some(reference) => if let Reference::Variable(index) = reference {
-                    Ok(index)
-                } else {
-                    Err(ReferenceError::InvalidSymbolUseAsVariable(name))
-                },
-                None => Err(ReferenceError::UndefinedVariableName(name))
-            }
-        } else { panic!("Unexpected resolved variable") }
+    fn resolve_variable(&self, name: String) -> Result<(usize, usize), ReferenceError> {
+        match self.environment.get_id(&name, 0) {
+            Some((reference, depth)) => if let Reference::Variable(index) = reference {
+                Ok((index, depth))
+            } else {
+                Err(ReferenceError::InvalidSymbolUseAsVariable(name))
+            },
+            None => Err(ReferenceError::UndefinedVariableName(name))
+        }
     }
 
-    fn resolve_function(&self, symbol: Symbol) -> Result<usize, ReferenceError> {
-        if let Symbol::Name(name) = symbol {
-            match self.environment.get_id(&name) {
-                Some(reference) => if let Reference::Function(index) = reference {
-                    Ok(index)
-                } else {
-                    Err(ReferenceError::InvalidSymbolUseAsFunction(name))
-                },
-                None => Err(ReferenceError::UndefinedFunctionName(name))
-            }
-        } else { panic!("Unexpected resolved function") }
+    fn resolve_function(&self, name: String) -> Result<usize, ReferenceError> {
+        match self.environment.get_id(&name, 0) {
+            Some((reference, _)) => if let Reference::Function(index) = reference {
+                Ok(index)
+            } else {
+                Err(ReferenceError::InvalidSymbolUseAsFunction(name))
+            },
+            None => Err(ReferenceError::UndefinedFunctionName(name))
+        }
     }
 
-    fn open_scope(&mut self) {
-        self.environment.open_scope();
+    fn open_scope(&mut self, is_function: bool) {
+        self.environment.open_scope(is_function);
     }
 
     fn end_scope(&mut self) {
@@ -174,6 +178,7 @@ impl Resolver {
 
 pub fn resolve(ast: Vec<Statement>) -> ResolvedAst {
     let mut resolver = Resolver::new();
+    register_global(&ast, &mut resolver);
     let ast = resolve_block(ast, &mut resolver);
     if resolver.error_mode {
         println!("Resolving error:");
@@ -184,24 +189,20 @@ pub fn resolve(ast: Vec<Statement>) -> ResolvedAst {
     ResolvedAst { ast, symtable: resolver.symtable, error_mode: resolver.error_mode }
 }
 
-fn resolve_block(block: Vec<Statement>, resolver: &mut Resolver) -> Vec<Statement> {
-    let mut error_stack = Vec::new();
-    let resolved_block = block.into_iter().map(|statement| {
-        resolve_statement(statement, resolver)
-    }).filter_map(|resolving_result| {
-        match resolving_result {
-            Ok(statement) => statement,
-            Err(error) => {
-                error_stack.push(error);
-                None
-            }
+fn register_global(ast: &Vec<Statement>, resolver: &mut Resolver) {
+    for statement in ast {
+        match statement {
+            Statement::FunctionDeclaration {identifier,..} => resolver.register_function(identifier.clone()),
+            _ => ()
         }
-    }).collect();
-    if error_stack.len() > 0 {
-        resolver.error_stack.append(&mut error_stack);
-        resolver.error_mode = true;
     }
-    resolved_block
+}
+
+fn resolve_block(block: Vec<Statement>, resolver: &mut Resolver) -> Vec<Statement> {
+    let mut resolved_block = block.into_iter().map(|statement| {
+        resolve_statement(statement, resolver)
+    }).collect();
+    filter_error(resolved_block, resolver)
 }
 
 fn filter_error<T>(vector: Vec<Result<T, ReferenceError>>, resolver: &mut Resolver) -> Vec<T> {
@@ -222,9 +223,9 @@ fn filter_error<T>(vector: Vec<Result<T, ReferenceError>>, resolver: &mut Resolv
     vector
 }
 
-fn resolve_statement(statement: Statement, resolver: &mut Resolver) -> Result<Option<Statement>, ReferenceError> {
+fn resolve_statement(statement: Statement, resolver: &mut Resolver) -> Result<Statement, ReferenceError> {
     match statement {
-        Statement::Print {value} => Ok(Some(Statement::Print {value: resolve_expression(value, resolver)?} )),
+        Statement::Print {value} => Ok(Statement::Print {value: resolve_expression(value, resolver)?} ),
         Statement::VariableDeclaration {
             value,
             identifier,
@@ -245,32 +246,32 @@ fn resolve_statement(statement: Statement, resolver: &mut Resolver) -> Result<Op
             return_type,
             block,
             resolver),
-        Statement::Call {expression} => Ok(Some(Statement::Call {expression: resolve_expression(expression, resolver)?} )),
+        Statement::Call {expression} => Ok(Statement::Call {expression: resolve_expression(expression, resolver)?} ),
         Statement::ReturnStatement {return_value, function} => resolve_return(return_value, function, resolver),
         _ => panic!("Unsupported statement type: {:?}", statement)
     }
 }
 
-fn resolve_variable_declaration(value: Expression, identifier: Symbol, variable_type: Option<Symbol>, resolver: &mut Resolver) -> Result<Option<Statement>, ReferenceError> {
+fn resolve_variable_declaration(value: Expression, identifier: String, variable_type: Option<String>, resolver: &mut Resolver) -> Result<Statement, ReferenceError> {
     let value = resolve_expression(value, resolver)?;
     let variable_type = resolver.resolve_type(variable_type)?;
     let id = resolver.declare_variable(identifier, variable_type);
-    Ok(Some(Statement::VariableAssignment {
-        identifier: Symbol::Id(id),
+    Ok(Statement::VariableAssignment {
+        identifier: id,
         value
-    }))
+    })
 }
 
 fn resolve_function_declaration(
-    identifier: Symbol,
+    identifier: String,
     param_list: Vec<Parameter>,
-    return_type: Option<Symbol>,
+    return_type: Option<String>,
     block: Box<Vec<Statement>>,
-    resolver: &mut Resolver) -> Result<Option<Statement>, ReferenceError> {
-    let index = resolver.register_function(identifier);
+    resolver: &mut Resolver) -> Result<Statement, ReferenceError> {
+    let index = resolver.resolve_function(identifier)?;
     let return_type = resolver.resolve_type(return_type)?;
 
-    resolver.open_scope();
+    resolver.open_scope(true);
     let param_list = param_list.into_iter().map(|parameter| {
         declare_parameter(parameter, resolver)
     }).collect();
@@ -280,30 +281,30 @@ fn resolve_function_declaration(
 
     let param_list = filter_error(param_list, resolver);
     resolver.declare_function(index, return_type, param_list);
-    Ok(Some(Statement::FunctionDefinition {
-        identifier: Symbol::Id(index),
+    Ok(Statement::FunctionDefinition {
+        identifier: index,
         block: Box::new(block)
-    }))
+    })
 }
 
 fn declare_parameter (parameter: Parameter, resolver: &mut Resolver) -> Result<ParamType, ReferenceError> {
     let param_type = resolver.resolve_type(Some(parameter.param_type))?;
-    let id = resolver.declare_variable(parameter.identifier, param_type.clone());
+    resolver.declare_variable(parameter.identifier.clone(), param_type.clone());
     Ok(ParamType {
-        identifier: Symbol::Id(id),
+        identifier: parameter.identifier,
         param_type: param_type.expect("Unexpected untyped parameter")
     })
 }
 
-fn resolve_return(mut return_value: Option<Expression>, function: Symbol, resolver: &mut Resolver) -> Result<Option<Statement>, ReferenceError> {
+fn resolve_return(mut return_value: Option<Expression>, function: String, resolver: &mut Resolver) -> Result<Statement, ReferenceError> {
     if let Some(value) = return_value {
         return_value = Some(resolve_expression(value, resolver)?);
     }
     let id = resolver.resolve_function(function)?;
-    Ok(Some(Statement::ReturnStatement {
+    Ok(Statement::ResolvedReturn {
         return_value, 
-        function: Symbol::Id(id)
-    }))
+        function: id
+    })
 }
 
 
@@ -318,18 +319,21 @@ fn resolve_expression(expression: Expression, resolver: &mut Resolver) -> Result
     }
 }
 
-fn resolve_variable(identifier: Symbol, resolver: &mut Resolver) -> Result<Expression, ReferenceError> {
-    let id = resolver.resolve_variable(identifier)?;
-    Ok(Expression::Variable {identifier: Symbol::Id(id)})
+fn resolve_variable(identifier: String, resolver: &mut Resolver) -> Result<Expression, ReferenceError> {
+    let (id, depth) = resolver.resolve_variable(identifier)?;
+    Ok(Expression::LocalVar {
+        id,
+        depth
+    })
 }
 
-fn resolve_function_call(identifier: Symbol, argument_list: Box<Vec<Expression>>, resolver: &mut Resolver) -> Result<Expression, ReferenceError> {
+fn resolve_function_call(identifier: String, argument_list: Box<Vec<Expression>>, resolver: &mut Resolver) -> Result<Expression, ReferenceError> {
     let id = resolver.resolve_function(identifier)?;
     let argument_list = argument_list.into_iter().map(|argument| {
         resolve_expression(argument, resolver)
     }).collect();
-    Ok(Expression::FunctionCall {
-        identifier: Symbol::Id(id),
+    Ok(Expression::ResolvedFunctionCall {
+        id: id,
         argument_list: Box::new(filter_error(argument_list, resolver))
     })
 }

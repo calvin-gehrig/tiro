@@ -13,13 +13,21 @@ pub struct AnalyzedAst {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
-    pub return_type: Option<TiroType>,
-    pub param_list: Vec<ParamType>
+    pub return_type: Option<Type>,
+    pub param_list: Vec<ParamType>,
+    pub identifier: String
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LocalVariable {
+    pub vartype: Option<Type>,
+    pub identifier: String,
+    pub index: usize
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Symtable {
-    pub variable_table: Vec<Option<TiroType>>,
+    pub variable_table: Vec<LocalVariable>,
     pub function_table: Vec<Function>
 }
 
@@ -28,26 +36,30 @@ pub enum Statement {
     Print {value: Expression},
     VariableDeclaration {
         value: Expression,
-        identifier: Symbol,
-        variable_type: Option<Symbol>
+        identifier: String,
+        variable_type: Option<String>
     },
     VariableAssignment {
         value: Expression,
-        identifier: Symbol
+        identifier: usize
     },
     FunctionDeclaration {
-        identifier: Symbol,
+        identifier: String,
         param_list: Vec<Parameter>,
-        return_type: Option<Symbol>,
+        return_type: Option<String>,
         block: Box<Vec<Statement>>
     },
     FunctionDefinition {
-        identifier: Symbol,
+        identifier: usize,
         block: Box<Vec<Statement>>
     },
     ReturnStatement {
         return_value: Option<Expression>,
-        function: Symbol
+        function: String
+    },
+    ResolvedReturn {
+        return_value: Option<Expression>,
+        function: usize
     },
     Call {
         expression: Expression
@@ -56,40 +68,39 @@ pub enum Statement {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Parameter {
-    pub identifier: Symbol,
-    pub param_type: Symbol
+    pub identifier: String,
+    pub param_type: String
 }
 
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParamType {
-    pub identifier: Symbol,
-    pub param_type: TiroType
+    pub identifier: String,
+    pub param_type: Type
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     StringValue {value: String},
-    Variable {identifier: Symbol},
+    Variable {identifier: String},
+    LocalVar {id: usize, depth: usize},
     FunctionCall {
-        identifier: Symbol,
+        identifier: String,
+        argument_list: Box<Vec<Expression>>
+    },
+    ResolvedFunctionCall {
+        id: usize,
         argument_list: Box<Vec<Expression>>
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Symbol {
-    Name(String),
-    Id(usize)
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TiroType {
+pub enum Type {
     StringType,
     Null(Nil)
 }
 
-impl TiroType {
+impl Type {
     pub fn null() -> Self {
         Self::Null(Nil {})
     }

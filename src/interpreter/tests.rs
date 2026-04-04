@@ -1,8 +1,7 @@
 use crate::compiler::{
     Opcode,
     StackValue,
-    HeapValue,
-    LocalVar
+    CompiledProgram
 };
 
 use super::{
@@ -10,8 +9,8 @@ use super::{
     interpret_code
 };
 
-fn interpret(heap: Vec<HeapValue>, bytecode: Vec<Opcode>) -> Vec<String> {
-    let mut interpreter = Interpreter::new(bytecode, heap);
+fn interpret(program: CompiledProgram) -> Vec<String> {
+    let mut interpreter = Interpreter::new(program);
     while let Some(opcode) = interpreter.next_opcode() {
         interpret_code(opcode, &mut interpreter);
     }
@@ -20,26 +19,27 @@ fn interpret(heap: Vec<HeapValue>, bytecode: Vec<Opcode>) -> Vec<String> {
 
 #[test]
 fn print() {
-    assert_eq!(interpret(vec![
-            HeapValue::StringValue("a".to_string())
-        ], vec![
-            Opcode::Push(StackValue::HeapIndex(0)),
-            Opcode::Print
-        ]),
-        vec!["a"]);
+    assert_eq!(interpret(CompiledProgram {
+            main_program: vec![
+                Opcode::Push(StackValue::StringIndex(0)),
+                Opcode::Print
+            ],
+            string_pool: vec!["a".to_string()],
+            function_pool: vec![]
+        }),
+        vec!["a".to_string()]);
 }
 
 #[test]
 fn variable_declaration() {
-    assert_eq!(interpret(vec![
-            HeapValue::StringValue("a".to_string())    
-        ], vec![
-            Opcode::Push(StackValue::HeapIndex(0)),
-            Opcode::Push(StackValue::LocalVar(LocalVar {
-                index: 0,
-                depth: 0
-            })),
-            Opcode::Print
-        ]),
+    assert_eq!(interpret(CompiledProgram {
+            main_program: vec![
+                Opcode::Push(StackValue::StringIndex(0)),
+                Opcode::Push(StackValue::LocalVar(0, 0)),
+                Opcode::Print
+            ],
+            string_pool: vec!["a".to_string()],
+            function_pool: vec![]
+        }),
         vec!["a"]);
 }

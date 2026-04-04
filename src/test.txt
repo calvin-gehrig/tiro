@@ -1,2 +1,5 @@
-sit message:cat "Hello, world!"
-echo message
+fvnctio greet(message: cat)
+	echo message
+reddi
+
+voc greet("Hello, world!")

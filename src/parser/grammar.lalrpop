@@ -1,8 +1,7 @@
 use crate::common::{
     Statement,
     Expression,
-    Parameter,
-    Symbol
+    Parameter
 };
 
 use crate::lexer::{
@@ -50,11 +49,8 @@ StmtPrint: Statement = {
 StmtVariableDeclaration : Statement = {
     "sit" <varname:"id"> ":" <vartype:"id"?> <varvalue:Expr> => Statement::VariableDeclaration {
         value: varvalue,
-        variable_type: match vartype {
-            Some(type_id) => Some(Symbol::Name(type_id)),
-            None => None
-        },
-        identifier: Symbol::Name(varname)
+        variable_type: vartype,
+        identifier: varname
     }
 }
 
@@ -63,7 +59,7 @@ StmtFunctionDeclaration : Statement = {
         <last_param:ParamDef?> ")"
         <return_type:FunctionReturnType?> <mut block:Program>
         <mut return_stmt:ReturnStmt> => Statement::FunctionDeclaration {
-            identifier: Symbol::Name(funcname.clone()),
+            identifier: funcname.clone(),
             param_list: match last_param {
                 Some(param) => {
                     param_list.push(param);
@@ -74,7 +70,7 @@ StmtFunctionDeclaration : Statement = {
             return_type,
             block: {
                 if let Statement::ReturnStatement {function,..} = &mut return_stmt {
-                    *function = Symbol::Name(funcname);
+                    *function = funcname;
                 }
                 block.push(return_stmt);
                 Box::new(block)
@@ -84,19 +80,19 @@ StmtFunctionDeclaration : Statement = {
 
 ParamDef : Parameter = {
     <name:"id"> ":" <param_type:"id"> => Parameter {
-            identifier: Symbol::Name(name),
-            param_type: Symbol::Name(param_type)
+            identifier: name,
+            param_type: param_type
         }
 }
 
-FunctionReturnType : Symbol = {
-    "=>" <"id"> => Symbol::Name(<>)
+FunctionReturnType : String = {
+    "=>" <"id"> => <>
 }
 
 ReturnStmt : Statement = {
     "reddi" <return_value:Expr?> => Statement::ReturnStatement {
         return_value,
-        function: Symbol::Name("".to_string())
+        function: String::default()
     }
 }
 
@@ -113,13 +109,13 @@ Expr: Expression = {
 
 ExprValue: Expression = {
     "catena" => Expression::StringValue {value: <>},
-    "id" => Expression::Variable {identifier: Symbol::Name(<>)}
+    "id" => Expression::Variable {identifier: <>}
 }
 
 FuncCall: Expression = {
     <name:"id"> "(" <mut args: (<Expr> ",")*> <last_arg:Expr?> ")" =>
             Expression::FunctionCall {
-                identifier: Symbol::Name(name),
+                identifier: name,
                 argument_list: match last_arg {
                     Some(arg) => {
                         args.push(arg);

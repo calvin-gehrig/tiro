@@ -1,22 +1,22 @@
-use crate::common::TiroType;
+use crate::common::Type;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeCheckError {
     MismatchedTypeError(TypeError),
     ReturnError(ReturnErr),
-    ArityError(usize, usize)
+    ArityError(String, usize, usize)
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ReturnErr {
-    ValueReturnedOnNull,
-    NullReturnedOnValue
+    ValueReturnedOnNull(String),
+    NullReturnedOnValue(String)
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeError {
-    PrintValueError(TiroType),
-    VariableAssignmentError(TiroType, TiroType),
-    ReturnedValueError(TiroType, TiroType),
-    ParameterArgumentError(TiroType, TiroType)
+    PrintValueError(Type),
+    VariableAssignmentError(String, Type, Type),
+    ReturnedValueError(String, Type, Type),
+    ParameterArgumentError(String, String, Type, Type)
 }

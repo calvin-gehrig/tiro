@@ -3,9 +3,9 @@ use crate::common::{
     Symtable,
     Statement,
     Expression,
-    Symbol,
     Function,
-    TiroType
+    LocalVariable,
+    Type
 };
 
 mod error;
@@ -52,60 +52,60 @@ impl TypeChecker {
 
     fn push_error(&mut self, error: TypeCheckError) {
         self.error_stack.push(error);
-        if !self.error_mode {
-            self.error_mode = true;
-        }
+        self.error_mode = true;
     }
 
-    fn get_vartype(&self, symbol: &Symbol) -> Option<TiroType> {
-        if let Symbol::Id(id) = symbol {
-            self.symtable.variable_table[*id].clone()
-        } else { panic!("Unexpected unresolved identifier") }
+    fn get_vartype(&self, id: usize) -> Option<Type> {
+        let variable = &self.symtable.variable_table[id];
+        variable.vartype.clone()
     }
 
-    fn get_function(&self, symbol: &Symbol) -> Function {
-        if let Symbol::Id(id) = symbol {
-            self.symtable.function_table[*id].clone()
-        } else { panic!("Unexpected unresolved identifier") }
+    fn get_variable(&self, id: usize) -> LocalVariable {
+        self.symtable.variable_table[id].clone()
     }
 
-    fn assign_vartype(&mut self, symbol: &Symbol, vartype: TiroType) {
-        if let Symbol::Id(id) = symbol {
-            self.symtable.variable_table[*id] = Some(vartype);
-        } else { panic!("Unexpected unresolved identifier") }
+    fn get_function(&self, id: usize) -> Function {
+        self.symtable.function_table[id].clone()
+    }
+
+    fn assign_vartype(&mut self, id: usize, vartype: Type) {
+        self.symtable.variable_table[id].vartype = Some(vartype);
     }
 }
 
 fn check_statement(statement: &mut Statement, type_checker: &mut TypeChecker) {
     match statement {
         Statement::Print {value} => check_print(value, type_checker),
-        Statement::VariableAssignment {identifier, value} => check_variable_assignment(identifier, value, type_checker),
+        Statement::VariableAssignment {identifier, value} => check_variable_assignment(*identifier, value, type_checker),
         Statement::FunctionDefinition {block,..} => check_function_definition(block, type_checker),
         Statement::Call {expression} => {
             check_expression(expression, type_checker);
         },
-        Statement::ReturnStatement {return_value, function} => check_return(return_value, function, type_checker),
+        Statement::ResolvedReturn {return_value, function} => check_return(return_value, *function, type_checker),
         _ => panic!("Unsupported Statement type {:?}", statement)
     };
 }
 
 fn check_print(value: &mut Expression, type_checker: &mut TypeChecker) {
     let tiro_type = check_expression(value, type_checker);
-    if tiro_type != TiroType::StringType {
+    if tiro_type != Type::StringType {
         type_checker.push_error(TypeCheckError::MismatchedTypeError(
-                TypeError::PrintValueError(TiroType::StringType)));
+                TypeError::PrintValueError(Type::StringType)));
     }
 }
 
-fn check_variable_assignment(identifier: &mut Symbol, value: &mut Expression, type_checker: &mut TypeChecker) {
-    let variable_type = type_checker.get_vartype(identifier);
+fn check_variable_assignment(id: usize, value: &mut Expression, type_checker: &mut TypeChecker) {
+    let variable = type_checker.get_variable(id);
     let value_type = check_expression(value, type_checker);
-    match variable_type {
-        Some(var_type) => if var_type != value_type {
+    match variable.vartype {
+        Some(variable_type) => if variable_type != value_type {
             type_checker.push_error(TypeCheckError::MismatchedTypeError(
-                    TypeError::VariableAssignmentError(var_type, value_type)));
+                    TypeError::VariableAssignmentError(
+                        variable.identifier,
+                        variable_type, 
+                        value_type)));
         },
-        None => type_checker.assign_vartype(identifier, value_type)
+        None => type_checker.assign_vartype(id, value_type)
     }
 }
 
@@ -115,51 +115,60 @@ fn check_function_definition(block: &mut Vec<Statement>, type_checker: &mut Type
     }
 }
 
-fn check_return(maybe_value: &mut Option<Expression>, function: &mut Symbol, type_checker: &mut TypeChecker) {
-    let function = type_checker.get_function(function);
+fn check_return(maybe_value: &mut Option<Expression>, id: usize, type_checker: &mut TypeChecker) {
+    let function = type_checker.get_function(id);
     if let Some(return_value) = maybe_value {
         let value_type = check_expression(return_value, type_checker);
         if let Some(return_type) = function.return_type {
             if return_type != value_type {
                 type_checker.push_error(TypeCheckError::MismatchedTypeError(
-                        TypeError::ReturnedValueError(return_type, value_type)));
+                        TypeError::ReturnedValueError(
+                            function.identifier,
+                            return_type,
+                            value_type)));
             }
         } else if !value_type.is_null() {
             type_checker.push_error(TypeCheckError::ReturnError(
-                    ReturnErr::ValueReturnedOnNull));
+                    ReturnErr::ValueReturnedOnNull(
+                        function.identifier
+                    )));
         }
     } else {
         if function.return_type.is_some() {
             type_checker.push_error(TypeCheckError::ReturnError(
-                    ReturnErr::NullReturnedOnValue));
+                    ReturnErr::NullReturnedOnValue(
+                        function.identifier
+                    )));
         }
     }
 }
 
-fn check_expression(expression: &mut Expression, type_checker: &mut TypeChecker) -> TiroType {
+fn check_expression(expression: &mut Expression, type_checker: &mut TypeChecker) -> Type {
     match expression {
-        Expression::StringValue {..} => TiroType::StringType,
-        Expression::Variable {identifier} => check_variable(identifier, type_checker),
-        Expression::FunctionCall {identifier, argument_list} => check_function_call(identifier, argument_list, type_checker),
+        Expression::StringValue {..} => Type::StringType,
+        Expression::LocalVar {id, ..} => check_variable(*id, type_checker),
+        Expression::ResolvedFunctionCall {id, argument_list} => check_function_call(*id, argument_list, type_checker),
         _ => panic!("Unsupported expression type")
     }
 }
 
-fn check_variable(identifier: &mut Symbol, type_checker: &mut TypeChecker) -> TiroType {
-        let maybe_vartype = type_checker.get_vartype(identifier);
+fn check_variable(id: usize, type_checker: &mut TypeChecker) -> Type {
+        let maybe_vartype = type_checker.get_vartype(id);
         match maybe_vartype {
             Some(vartype) => vartype,
             None => { panic!("Unexpected unintialized variable") }
         }
 }
 
-fn check_function_call(identifier: &mut Symbol, argument_list: &mut Box<Vec<Expression>>, type_checker: &mut TypeChecker) -> TiroType {
-    let function = type_checker.get_function(identifier);
+fn check_function_call(id: usize, argument_list: &mut Box<Vec<Expression>>, type_checker: &mut TypeChecker) -> Type {
+    let function = type_checker.get_function(id);
     if argument_list.len() != function.param_list.len() {
         type_checker.push_error(TypeCheckError::ArityError(
+                function.identifier,
                 function.param_list.len(),
                 argument_list.len()));
     } else {
+        let name = function.identifier.clone();
         argument_list.iter_mut()
             .zip(function.param_list.iter())
             .for_each(|(argument, parameter)| {
@@ -167,6 +176,8 @@ fn check_function_call(identifier: &mut Symbol, argument_list: &mut Box<Vec<Expr
                 let param_type = &parameter.param_type;
                 if argument_type != *param_type {
                     type_checker.push_error(TypeCheckError::MismatchedTypeError(TypeError::ParameterArgumentError(
+                                name.clone(),
+                                parameter.identifier.clone(),
                                 argument_type,
                                 param_type.clone()
                     )));
@@ -176,6 +187,6 @@ fn check_function_call(identifier: &mut Symbol, argument_list: &mut Box<Vec<Expr
 
     match &function.return_type {
         Some(return_type) => return_type.clone(),
-        None => TiroType::null()
+        None => Type::null()
     }
 }
