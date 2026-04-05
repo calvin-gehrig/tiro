@@ -50,14 +50,14 @@ impl Interpreter {
         self.stack.pop().expect("Unexpected empty stack")
     }
 
-    fn get_stack(&self, index: usize, depth: usize) -> StackValue {
+    fn get_stack(&mut self, index: usize, depth: usize) {
         let mut var_frame = self.current_frame;
         for _ in 0..depth {
             if let StackValue::UpperFrame(upper_frame) = self.stack[self.current_frame] {
                 var_frame = upper_frame;
             } else { panic!("Unexpected stackvalue instead of frame") }
         }
-        self.stack[var_frame + 1 + index].clone()
+        self.push_stack(self.stack[var_frame + 1 + index].clone());
     }
 
     fn get_string(&self, index: usize) -> String {
@@ -119,7 +119,8 @@ fn interpret_code(opcode: Opcode, interpreter: &mut Interpreter) {
         Opcode::Pop => {interpreter.pop_stack();},
         Opcode::Call(id, arity) => interpret_call(id, arity, interpreter),
         Opcode::Return => interpret_return(interpreter),
-        Opcode::Print => interpret_print(interpreter)
+        Opcode::Print => interpret_print(interpreter),
+        Opcode::LoadLocal(index, depth) => interpreter.get_stack(index, depth)
     }
 }
 
@@ -134,7 +135,7 @@ fn interpret_call(id: usize, arity: usize, interpreter: &mut Interpreter) {
         args.push(interpreter.pop_stack());
     }
     interpreter.call(id);
-    args.into_iter().for_each(|arg| {
+    args.into_iter().rev().for_each(|arg| {
         interpreter.push_stack(arg);
     });
 }
@@ -150,9 +151,6 @@ fn interpret_expression(expression: StackValue, interpreter: &mut Interpreter) -
         StackValue::StringIndex(index) => ExprValue::StringValue(
             interpreter.get_string(index)
         ),
-        StackValue::LocalVar(index, depth) => interpret_expression(
-            interpreter.get_stack(index, depth),
-            interpreter),
         _ => panic!("Unexpected stack value {:?}", expression)
     }
 }

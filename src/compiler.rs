@@ -67,6 +67,7 @@ impl Compiler {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Opcode {
+    LoadLocal(usize, usize),
     Push(StackValue),
     Pop,
     Call(usize, usize),
@@ -77,7 +78,6 @@ pub enum Opcode {
 #[derive(Debug, Clone, PartialEq)]
 pub enum StackValue {
     StringIndex(usize),
-    LocalVar(usize, usize),
     UpperFrame(usize),
     UpperFunction(Option<usize>),
     Null,
@@ -156,7 +156,7 @@ fn compile_string(string: String, compiler: &mut Compiler) {
 
 fn compile_variable(id: usize, depth: usize, compiler: &mut Compiler) {
         let index = compiler.get_local(id);
-        compiler.push_opcode(Opcode::Push(StackValue::LocalVar(index, depth)));
+        compiler.push_opcode(Opcode::LoadLocal(index, depth));
 }
 
 fn compile_function_call(id: usize, argument_list: Vec<Expression>, compiler: &mut Compiler) {
