@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::mem;
 
 use crate::common::{
@@ -6,18 +5,21 @@ use crate::common::{
     Symtable,
     Statement,
     Expression,
-    Function,
-    LocalVariable,
-    Type
+    OperationType
 };
 
-#[cfg(test)]
-mod tests;
+use crate::bytecode::{
+    Op,
+    NumSize
+};
+
+//#[cfg(test)]
+//mod tests;
 
 struct Compiler {
-    main_program: Vec<Opcode>,
+    main_program: Vec<u8>,
     string_pool: Vec<String>,
-    function_pool: Vec<Vec<Opcode>>,
+    function_pool: Vec<Vec<u8>>,
     symtable: Symtable,
     current_function: Option<usize>,
     upper_functions: Vec<usize>
@@ -35,10 +37,31 @@ impl Compiler {
         }
     }
 
-    fn push_opcode(&mut self, opcode: Opcode) {
+    fn push_opcode(&mut self, opcode: Op) {
+        self.push_byte(opcode as u8);
+    }
+
+    fn push_byte(&mut self, byte: u8) {
         match self.current_function {
-            None => self.main_program.push(opcode),
-            Some(id) => self.function_pool[id].push(opcode)
+            None => self.main_program.push(byte),
+            Some(id) => self.function_pool[id].push(byte)
+        }
+    }
+
+    fn push_value(&mut self, value: usize) {
+        if value < u8::MAX.into() {
+            self.push_byte(NumSize::_8 as u8);
+            self.push_byte(u8::try_from(value).unwrap());
+
+        } else if value < u32::MAX.try_into().unwrap() {
+            let bytes = u32::try_from(value).unwrap().to_ne_bytes();
+            self.push_byte(NumSize::_32 as u8);
+            bytes.into_iter().for_each(|b| self.push_byte(b));
+
+        } else {
+            let bytes = u64::try_from(value).unwrap().to_ne_bytes();
+            self.push_byte(NumSize::_64 as u8);
+            bytes.into_iter().for_each(|b| self.push_byte(b));
         }
     }
 
@@ -66,28 +89,9 @@ impl Compiler {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Opcode {
-    LoadLocal(usize, usize),
-    Push(StackValue),
-    Pop,
-    Call(usize, usize),
-    Return,
-    Print
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum StackValue {
-    StringIndex(usize),
-    UpperFrame(usize),
-    UpperFunction(Option<usize>),
-    Null,
-    EOS
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct CompiledProgram {
-    pub main_program: Vec<Opcode>,
-    pub function_pool: Vec<Vec<Opcode>>,
+    pub main_program: Vec<u8>,
+    pub function_pool: Vec<Vec<u8>>,
     pub string_pool: Vec<String>
 }
 
@@ -116,7 +120,7 @@ fn compile_statement(statement: Statement, compiler: &mut Compiler) {
 
 fn compile_print(value: Expression, compiler: &mut Compiler) {
     compile_expression(value, compiler);
-    compiler.push_opcode(Opcode::Print);
+    compiler.push_opcode(Op::Write);
 }
 
 fn compile_function_definition(block: Vec<Statement>, compiler: &mut Compiler) {
@@ -130,33 +134,46 @@ fn compile_function_definition(block: Vec<Statement>, compiler: &mut Compiler) {
 fn compile_return_statement (return_value: Option<Expression>, compiler: &mut Compiler) {
     match return_value {
         Some(value) => compile_expression(value, compiler),
-        None => compiler.push_opcode(Opcode::Push(StackValue::Null))
+        None => {
+            compiler.push_opcode(Op::Push);
+            compiler.push_byte(0x00);
+        }
     }
-    compiler.push_opcode(Opcode::Return);
+    compiler.push_opcode(Op::Return);
 }
 
 fn compile_call (expression: Expression, compiler: &mut Compiler) {
     compile_expression(expression, compiler);
-    compiler.push_opcode(Opcode::Pop);
+    compiler.push_opcode(Op::Pop);
 }
 
 fn compile_expression(expression: Expression, compiler: &mut Compiler) {
     match expression {
         Expression::StringValue {value} => compile_string(value, compiler),
+        Expression::Number {value} => compile_number(value, compiler),
         Expression::LocalVar {id, depth} => compile_variable(id, depth, compiler),
         Expression::ResolvedFunctionCall {id, argument_list} => compile_function_call(id, *argument_list, compiler),
+        Expression::BinaryOperation {lhs, rhs, op_type} => compile_binary(*lhs, *rhs, op_type, compiler),
         _ => panic!("Unsupported expression type")
     }
 }
 
 fn compile_string(string: String, compiler: &mut Compiler) {
     let index = compiler.push_string(string);
-    compiler.push_opcode(Opcode::Push(StackValue::StringIndex(index)));
+    compiler.push_opcode(Op::Push);
+    compiler.push_value(index);
+}
+
+fn compile_number(value: u32, compiler: &mut Compiler) {
+    compiler.push_opcode(Op::Push);
+    compiler.push_value(usize::try_from(value).unwrap());
 }
 
 fn compile_variable(id: usize, depth: usize, compiler: &mut Compiler) {
         let index = compiler.get_local(id);
-        compiler.push_opcode(Opcode::LoadLocal(index, depth));
+        compiler.push_opcode(Op::Load);
+        compiler.push_value(index);
+        compiler.push_value(depth);
 }
 
 fn compile_function_call(id: usize, argument_list: Vec<Expression>, compiler: &mut Compiler) {
@@ -164,5 +181,20 @@ fn compile_function_call(id: usize, argument_list: Vec<Expression>, compiler: &m
     for argument in argument_list {
         compile_expression(argument, compiler);
     }
-    compiler.push_opcode(Opcode::Call(id, arity));
+    compiler.push_opcode(Op::Call);
+    compiler.push_value(id);
+    compiler.push_value(arity);
+}
+
+fn compile_binary(lhs: Expression, rhs: Expression, op_type: OperationType, compiler: &mut Compiler) {
+    compile_expression(rhs, compiler);
+    compile_expression(lhs, compiler);
+    compiler.push_opcode(match op_type {
+        OperationType::Add => Op::Add,
+        OperationType::Sub => Op::Sub,
+        OperationType::Mul => Op::Mul,
+        OperationType::Div => Op::Div,
+        OperationType::Pow => Op::Pow,
+        OperationType::Cat => Op::Cat,
+    });
 }

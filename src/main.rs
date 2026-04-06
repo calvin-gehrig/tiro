@@ -2,6 +2,9 @@ use std::env;
 use std::fs;
 
 mod common;
+mod bytecode;
+
+mod test_helper;
 
 mod lexer;
 use lexer::Lexer;

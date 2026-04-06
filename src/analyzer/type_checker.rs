@@ -5,7 +5,8 @@ use crate::common::{
     Expression,
     Function,
     LocalVariable,
-    Type
+    Type,
+    OperationType
 };
 
 mod error;
@@ -90,7 +91,7 @@ fn check_print(value: &mut Expression, type_checker: &mut TypeChecker) {
     let tiro_type = check_expression(value, type_checker);
     if tiro_type != Type::StringType {
         type_checker.push_error(TypeCheckError::MismatchedTypeError(
-                TypeError::PrintValueError(Type::StringType)));
+                TypeError::PrintValueError(tiro_type)));
     }
 }
 
@@ -146,8 +147,13 @@ fn check_return(maybe_value: &mut Option<Expression>, id: usize, type_checker: &
 fn check_expression(expression: &mut Expression, type_checker: &mut TypeChecker) -> Type {
     match expression {
         Expression::StringValue {..} => Type::StringType,
+        Expression::Number {..} => Type::Integer,
         Expression::LocalVar {id, ..} => check_variable(*id, type_checker),
         Expression::ResolvedFunctionCall {id, argument_list} => check_function_call(*id, argument_list, type_checker),
+        Expression::BinaryOperation {lhs, rhs, op_type} => check_binary(
+            &mut *lhs,
+            &mut *rhs,
+        op_type, type_checker),
         _ => panic!("Unsupported expression type")
     }
 }
@@ -178,8 +184,8 @@ fn check_function_call(id: usize, argument_list: &mut Box<Vec<Expression>>, type
                     type_checker.push_error(TypeCheckError::MismatchedTypeError(TypeError::ParameterArgumentError(
                                 name.clone(),
                                 parameter.identifier.clone(),
-                                argument_type,
-                                param_type.clone()
+                                param_type.clone(),
+                                argument_type
                     )));
                 }
         });
@@ -189,4 +195,28 @@ fn check_function_call(id: usize, argument_list: &mut Box<Vec<Expression>>, type
         Some(return_type) => return_type.clone(),
         None => Type::null()
     }
+}
+
+fn check_binary (lhs: &mut Expression, rhs: &mut Expression, op_type: &mut OperationType, type_checker: &mut TypeChecker) -> Type {
+    let expected_type = match op_type {
+        OperationType::Add 
+        | OperationType::Sub
+        | OperationType::Mul
+        | OperationType::Div
+        | OperationType::Pow => Type::Integer,
+        OperationType::Cat => Type::StringType,
+    };
+    let lhs = check_expression(lhs, type_checker);
+    let rhs = check_expression(rhs, type_checker);
+    if lhs != expected_type || rhs != expected_type {
+        type_checker.push_error(
+            TypeCheckError::MismatchedTypeError(
+                TypeError::BinaryOperandError(
+                    op_type.clone(),
+                    expected_type.clone(),
+                    lhs,
+                    rhs
+                )));
+    }
+    expected_type
 }

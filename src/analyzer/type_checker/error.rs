@@ -1,4 +1,7 @@
-use crate::common::Type;
+use crate::common::{
+    Type,
+    OperationType
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeCheckError {
@@ -18,5 +21,6 @@ pub enum TypeError {
     PrintValueError(Type),
     VariableAssignmentError(String, Type, Type),
     ReturnedValueError(String, Type, Type),
-    ParameterArgumentError(String, String, Type, Type)
+    ParameterArgumentError(String, String, Type, Type),
+    BinaryOperandError(OperationType, Type, Type, Type)
 }

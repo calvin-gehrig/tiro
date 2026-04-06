@@ -1,5 +1,5 @@
-fvnctio greet(message: cat)
+fvnctio greet(message: cat)=>cat
 	echo message
-reddi
+reddi message
 
-voc greet("Hello, world!")
+echo greet("Hello, world!")

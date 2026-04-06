@@ -8,6 +8,7 @@ use crate::common::{
     Expression,
     Parameter,
     ParamType,
+    OperationType,
     Function,
     LocalVariable,
     Type
@@ -40,7 +41,7 @@ impl Environment {
     }
 
     fn get_id(&self, name: &String, depth: usize) -> Option<(Reference, usize)> {
-        let mut maybe_index = self.current_environment.get(name).cloned();
+        let maybe_index = self.current_environment.get(name).cloned();
         match maybe_index {
             None => if let UpperEnv::Env(upper_environment) = &self.upper_environment {
                 upper_environment.get_id(name, depth + 1)
@@ -104,6 +105,7 @@ impl Resolver {
             Some(type_name) => {
                     match type_name.as_str() {
                         "cat" => Ok(Some(Type::StringType)),
+                        "num" => Ok(Some(Type::Integer)),
                         _ => Err(ReferenceError::UndefinedTypeName(type_name))
                     }
             },
@@ -199,7 +201,7 @@ fn register_global(ast: &Vec<Statement>, resolver: &mut Resolver) {
 }
 
 fn resolve_block(block: Vec<Statement>, resolver: &mut Resolver) -> Vec<Statement> {
-    let mut resolved_block = block.into_iter().map(|statement| {
+    let resolved_block = block.into_iter().map(|statement| {
         resolve_statement(statement, resolver)
     }).collect();
     filter_error(resolved_block, resolver)
@@ -315,6 +317,7 @@ fn resolve_expression(expression: Expression, resolver: &mut Resolver) -> Result
             identifier,
             argument_list
         } => resolve_function_call(identifier, argument_list, resolver),
+        Expression::BinaryOperation {lhs, rhs, op_type} => resolve_binary(*lhs, *rhs, op_type, resolver),
         _ => Ok(expression)
     }
 }
@@ -336,4 +339,10 @@ fn resolve_function_call(identifier: String, argument_list: Box<Vec<Expression>>
         id: id,
         argument_list: Box::new(filter_error(argument_list, resolver))
     })
+}
+
+fn resolve_binary(lhs: Expression, rhs: Expression, op_type: OperationType, resolver: &mut Resolver) -> Result<Expression, ReferenceError> {
+    let lhs = Box::new(resolve_expression(lhs, resolver)?);
+    let rhs = Box::new(resolve_expression(rhs, resolver)?);
+    Ok(Expression::BinaryOperation {lhs, rhs, op_type})
 }

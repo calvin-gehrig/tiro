@@ -6,6 +6,7 @@ use crate::common::{
     Function,
     LocalVariable,
     ParamType,
+    OperationType,
     Type
 };
 
@@ -137,5 +138,103 @@ fn function_declaration() {
                         Opcode::Return
                     ]
                 ]
+        });
+}
+
+#[test]
+fn math_operation() {
+    assert_eq!(compile(AnalyzedAst {
+            ast: vec![
+            Statement::Call {
+                expression:
+                    Expression::BinaryOperation {
+                        op_type: OperationType::Add,
+                        lhs: Box::new(Expression::BinaryOperation {
+                            op_type: OperationType::Sub,
+                            lhs: Box::new(Expression::BinaryOperation {
+                                op_type: OperationType::Mul,
+                                lhs: Box::new(Expression::Number {
+                                    value: 2
+                                }),
+                                rhs: Box::new(Expression::Number {
+                                    value: 3
+                                })
+                            }),
+                            rhs: Box::new(Expression::Number {
+                                value: 5
+                            })
+                        }),
+                        rhs: Box::new(Expression::BinaryOperation {
+                            op_type: OperationType::Div,
+                            lhs: Box::new(Expression::BinaryOperation {
+                                op_type: OperationType::Pow,
+                                lhs: Box::new(Expression::Number {
+                                    value: 2
+                                }),
+                                rhs: Box::new(Expression::Number {
+                                    value: 4
+                                })
+                            }),
+                            rhs: Box::new(Expression::Number {
+                                value: 6
+                            })
+                        })
+                    }
+            }],
+            symtable: Symtable {
+                variable_table:vec![],
+                function_table:vec![]
+            }
+        }), 
+        CompiledProgram {
+            main_program: vec![
+                Opcode::Push(StackValue::Number(6)),
+                Opcode::Push(StackValue::Number(4)),
+                Opcode::Push(StackValue::Number(2)),
+                Opcode::Pow,
+                Opcode::Div,
+                Opcode::Push(StackValue::Number(5)),
+                Opcode::Push(StackValue::Number(3)),
+                Opcode::Push(StackValue::Number(2)),
+                Opcode::Mul,
+                Opcode::Sub,
+                Opcode::Add,
+                Opcode::Pop
+            ],
+            string_pool: vec![],
+            function_pool: vec![]
+        });
+}
+
+#[test]
+fn concat() {
+    assert_eq!(compile(AnalyzedAst {
+            ast: vec![
+            Statement::Call {
+                expression:
+                    Expression::BinaryOperation {
+                        op_type: OperationType::Cat,
+                        lhs: Box::new(Expression::StringValue {
+                            value: "a".to_string()
+                        }),
+                        rhs: Box::new(Expression::StringValue {
+                            value: "b".to_string()
+                        })
+                    }
+            }],
+            symtable: Symtable {
+                variable_table:vec![],
+                function_table:vec![]
+            }
+        }), 
+        CompiledProgram {
+            main_program: vec![
+                Opcode::Push(StackValue::StringIndex(0)),
+                Opcode::Push(StackValue::StringIndex(1)),
+                Opcode::Cat,
+                Opcode::Pop
+            ],
+            string_pool: vec!["b".to_string(), "a".to_string()],
+            function_pool: vec![]
         });
 }

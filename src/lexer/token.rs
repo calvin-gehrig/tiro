@@ -10,6 +10,8 @@ use super::error::LexingError;
 pub enum Token {
     #[regex("\"[^\"]*\"", parse_catena)]
     Catena(String),
+    #[regex("[0-9][0-9_]*", parse_number)]
+    Number(u32),
     #[token("echo")]
     Echo,
     #[token("sit")]
@@ -20,6 +22,18 @@ pub enum Token {
     Reddi,
     #[token("voc")]
     Voc,
+    #[token("+")]
+    Plus,
+    #[token("-")]
+    Minus,
+    #[token("*")]
+    Star,
+    #[token("/")]
+    Slash,
+    #[token("^")]
+    Caret,
+    #[token("~")]
+    Tile,
     #[token("=>")]
     RightArrow,
     #[token("(")]
@@ -50,6 +64,16 @@ fn parse_catena(lex: &mut Lexer<Token>) -> Result<String, LexingError> {
         Ok(slice[1..slice.len() - 1].to_string())
     } else {
         Err(LexingError::RegexStringError(slice.to_string()))
+    }
+}
+
+fn parse_number(lex: &mut Lexer<Token>) -> Result<u32, LexingError> {
+    let slice = lex.slice();
+    match slice.chars().
+        filter(|c| *c != '_').collect::<String>()
+    .parse() {
+        Ok(number) => Ok(number),
+        Err(_) => Err(LexingError::InvalidNumber(slice.to_string()))
     }
 }
 

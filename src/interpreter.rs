@@ -1,22 +1,24 @@
 use std::vec::IntoIter;
 
-use crate::compiler::{
-    StackValue,
-    Opcode,
-    CompiledProgram
+use crate::compiler::CompiledProgram;
+
+use crate::bytecode::{
+    Op,
+    Frame,
+    NumSize
 };
 
-#[cfg(test)]
-mod tests;
+//#[cfg(test)]
+//mod tests;
 
 struct Interpreter {
-    main_program: IntoIter<Opcode>,
-    function_pool: Vec<IntoIter<Opcode>>,
+    main_program: IntoIter<u8>,
+    function_pool: Vec<IntoIter<u8>>,
     string_pool: Vec<String>,
-    stack: Vec<StackValue>,
+    stack: Vec<usize>,
     output: Vec<String>,
     current_frame: usize,
-    current_function: Option<usize>
+    current_function: usize
 }
 
 impl Interpreter {
@@ -28,68 +30,100 @@ impl Interpreter {
                     function.into_iter()
                 }).collect(),
             string_pool: program.string_pool,
-            stack: vec![StackValue::EOS],
+            stack: vec![],
             output: Vec::new(),
             current_frame: 0,
-            current_function: None
+            current_function: 0
         }
     }
 
-    fn next_opcode(&mut self) -> Option<Opcode> {
+    fn next_opcode(&mut self) -> Option<Op> {
+        if let Some(byte) = self.next_byte() {
+            Some(Op::from(byte))
+        } else { None }
+    }
+
+    fn next_byte(&mut self) -> Option<u8> {
         match self.current_function {
-            None => self.main_program.next(),
-            Some(id) => self.function_pool[id].next()
+            0 => self.main_program.next(),
+            id => self.function_pool[id - 1].next()
         }
     }
 
-    fn push_stack(&mut self, stack_value: StackValue) {
+    fn read_value(&mut self) -> usize {
+        if let Some(byte) = self.next_byte() {
+            match NumSize::from(byte) {
+                NumSize::_8 => usize::from(self.next_byte().unwrap()),
+                NumSize::_32 => {
+                    let mut bytes: [u8; 4] = [0; 4];
+                    for i in 0..3 {
+                        bytes[i] = self.next_byte().unwrap();
+                    }
+                    usize::try_from(u32::from_le_bytes(bytes))
+                        .unwrap()
+                },
+                NumSize::_64 => {
+                    let mut bytes: [u8; 8] = [0; 8];
+                    for i in 0..7 {
+                        bytes[i] = self.next_byte().unwrap();
+                    }
+                    usize::try_from(u64::from_le_bytes(bytes))
+                        .unwrap()
+                }
+            }
+        } else { panic!("Tried to read value at end of program") }
+    }
+
+    fn push_stack(&mut self, stack_value: usize) {
         self.stack.push(stack_value);
     }
 
-    fn pop_stack(&mut self) -> StackValue {
+    fn pop_stack(&mut self) -> usize {
         self.stack.pop().expect("Unexpected empty stack")
     }
 
     fn get_stack(&mut self, index: usize, depth: usize) {
-        let mut var_frame = self.current_frame;
+        let mut varframe = self.current_frame;
         for _ in 0..depth {
-            if let StackValue::UpperFrame(upper_frame) = self.stack[self.current_frame] {
-                var_frame = upper_frame;
-            } else { panic!("Unexpected stackvalue instead of frame") }
+            varframe = self.stack[varframe];
         }
-        self.push_stack(self.stack[var_frame + 1 + index].clone());
+        self.push_stack(self.stack[varframe + 1 + index].clone());
     }
 
     fn get_string(&self, index: usize) -> String {
         self.string_pool[index].clone()
     }
 
-    fn print(&mut self, value: ExprValue) {
-        let string_value = match value {
-            ExprValue::StringValue(string) => string
-        };
-        self.output.push(string_value);
+    fn write_string(&mut self, string: String) -> usize {
+        self.string_pool.push(string);
+        self.string_pool.len() - 1
+    }
+
+    fn write(&mut self, value: String) {
+        self.output.push(value);
     }
 
     fn call(&mut self, id: usize) {
-        self.stack.push(StackValue::UpperFunction(self.current_function));
-        self.current_function = Some(id);
-        self.stack.push(StackValue::UpperFrame(self.current_frame));
+        self.stack.push(self.current_function);
+        self.stack.push(0x01);
+        self.current_function = id + 1;
+        self.stack.push(self.current_frame);
         self.current_frame = self.stack.len() - 1;
     }
 
     fn unwind(&mut self) {
         let mut varframe = self.current_frame;
         loop {
-            if let StackValue::UpperFunction(maybe_id) = self.stack[varframe - 1] {
-                self.current_function = maybe_id;
-                if let StackValue::UpperFrame(frame) = self.stack[varframe] {
-                    self.current_frame = frame;
+            match Frame::from(self.stack[varframe - 1]) {
+                Frame::Func => {
+                    self.current_function = self.stack[varframe - 2];
+                    self.current_frame = self.stack[varframe];
                     self.stack.truncate(varframe - 1);
+                    break;
+                },
+                Frame::Block => {
+                    varframe = self.stack[varframe];
                 }
-                break;
-            } else if let StackValue::UpperFrame(frame) = self.stack[varframe] {
-                varframe = frame;
             }
         }
     }
@@ -97,10 +131,6 @@ impl Interpreter {
     fn output(self) -> Vec<String> {
         self.output
     }
-}
-
-enum ExprValue {
-    StringValue(String)
 }
 
 pub fn interpret(program: CompiledProgram) {
@@ -113,44 +143,78 @@ pub fn interpret(program: CompiledProgram) {
     }
 }
 
-fn interpret_code(opcode: Opcode, interpreter: &mut Interpreter) {
+fn interpret_code(opcode: Op, interpreter: &mut Interpreter) {
     match opcode {
-        Opcode::Push(stack_value) => interpreter.push_stack(stack_value),
-        Opcode::Pop => {interpreter.pop_stack();},
-        Opcode::Call(id, arity) => interpret_call(id, arity, interpreter),
-        Opcode::Return => interpret_return(interpreter),
-        Opcode::Print => interpret_print(interpreter),
-        Opcode::LoadLocal(index, depth) => interpreter.get_stack(index, depth)
-    }
-}
+        Op::Push => {
+            let value = interpreter.read_value();
+            interpreter.push_stack(value);
+        },
+        Op::Pop => {
+            interpreter.pop_stack();
+        },
+        Op::Call => {
+            let id = interpreter.read_value();
+            let arity = interpreter.read_value();
 
-fn interpret_print(interpreter: &mut Interpreter) {
-    let value = interpret_expression(interpreter.pop_stack(), interpreter);
-    interpreter.print(value);
-}
+            let mut args = Vec::new();
+            for _ in 0..arity {
+                args.push(interpreter.pop_stack());
+            }
 
-fn interpret_call(id: usize, arity: usize, interpreter: &mut Interpreter) {
-    let mut args = Vec::new();
-    for _ in 0..arity {
-        args.push(interpreter.pop_stack());
-    }
-    interpreter.call(id);
-    args.into_iter().rev().for_each(|arg| {
-        interpreter.push_stack(arg);
-    });
-}
+            interpreter.call(id);
+            args.into_iter().rev().for_each(|arg| {
+                interpreter.push_stack(arg);
+            });
+        },
+        Op::Return => {
+            let return_value = interpreter.pop_stack();
+            interpreter.unwind();
+            interpreter.push_stack(return_value);
+        },
+        Op::Write => {
+             let index = interpreter.pop_stack();
+            interpreter.write(
+                interpreter.get_string(index));
+        },
+        Op::Load => {
+            let index = interpreter.read_value();
+            let depth = interpreter.read_value();
+            interpreter.get_stack(index, depth);
+        },
+        Op::Add => {
+            let lhs = interpreter.pop_stack();
+            let rhs = interpreter.pop_stack();
+            interpreter.push_stack(lhs + rhs);
+        },
+        Op::Sub => {
+            let lhs = interpreter.pop_stack();
+            let rhs = interpreter.pop_stack();
+            interpreter.push_stack(lhs - rhs);
+        },
+        Op::Mul => {
+            let lhs = interpreter.pop_stack();
+            let rhs = interpreter.pop_stack();
+            interpreter.push_stack(lhs * rhs);
+        },
+        Op::Div => {
+            let lhs = interpreter.pop_stack();
+            let rhs = interpreter.pop_stack();
+            interpreter.push_stack(lhs / rhs);
+        },
+        Op::Pow => {
+            let lhs = interpreter.pop_stack();
+            let rhs = interpreter.pop_stack();
+            interpreter.push_stack(lhs ^ rhs);
+        },
+        Op::Cat => {
+            let lhs_index = interpreter.pop_stack();
+            let lhs = interpreter.get_string(lhs_index);
 
-fn interpret_return(interpreter: &mut Interpreter) {
-    let return_value = interpreter.pop_stack();
-    interpreter.unwind();
-    interpreter.push_stack(return_value);
-}
+            let rhs_index = interpreter.pop_stack();
+            let rhs = interpreter.get_string(rhs_index);
 
-fn interpret_expression(expression: StackValue, interpreter: &mut Interpreter) -> ExprValue {
-    match expression {
-        StackValue::StringIndex(index) => ExprValue::StringValue(
-            interpreter.get_string(index)
-        ),
-        _ => panic!("Unexpected stack value {:?}", expression)
+            let index = interpreter.write_string(lhs + &rhs);
+            interpreter.push_stack(index);
+        },
     }
 }

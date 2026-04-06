@@ -82,8 +82,14 @@ pub struct ParamType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     StringValue {value: String},
+    Number {value: u32},
     Variable {identifier: String},
     LocalVar {id: usize, depth: usize},
+    BinaryOperation {
+        lhs: Box<Expression>,
+        rhs: Box<Expression>,
+        op_type: OperationType
+    },
     FunctionCall {
         identifier: String,
         argument_list: Box<Vec<Expression>>
@@ -94,10 +100,31 @@ pub enum Expression {
     }
 }
 
+impl Expression {
+    pub fn binary(lhs: Expression, rhs: Expression, op_type: OperationType) -> Self {
+        Self::BinaryOperation {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+            op_type
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     StringType,
+    Integer,
     Null(Nil)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OperationType {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Pow,
+    Cat
 }
 
 impl Type {

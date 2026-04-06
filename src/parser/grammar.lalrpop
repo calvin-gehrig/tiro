@@ -1,6 +1,7 @@
 use crate::common::{
     Statement,
     Expression,
+    OperationType,
     Parameter
 };
 
@@ -20,9 +21,16 @@ extern {
         "echo" => Token::Echo,
         "sit" => Token::Sit,
         "catena" => Token::Catena(<String>),
+        "number" => Token::Number(<u32>),
         "fvnctio" => Token::Functio,
         "reddi" => Token::Reddi,
         "voc" => Token::Voc,
+        "+" => Token::Plus,
+        "-" => Token::Minus,
+        "*" => Token::Star,
+        "/" => Token::Slash,
+        "^" => Token::Caret,
+        "~" => Token::Tile,
         "(" => Token::LeftParan,
         ")" => Token::RightParan,
         "," => Token::Comma,
@@ -104,11 +112,30 @@ Expr: Expression = {
     #[precedence(level="1")]
     ExprValue,
     #[precedence(level="2")]
-    FuncCall
+    FuncCall,
+    #[precedence(level="3")] #[assoc(side="right")]
+    <lhs:Expr> "^" <rhs:Expr> => Expression::binary(lhs, rhs,
+        OperationType::Pow),
+    #[precedence(level="4")] #[assoc(side="left")]
+    <lhs:Expr> <op:MultOp> <rhs:Expr> => Expression::binary(lhs, rhs, op),
+    #[precedence(level="5")] #[assoc(side="left")]
+    <lhs:Expr> <op:AddOp> <rhs:Expr> => Expression::binary(lhs, rhs, op)
+}
+
+MultOp: OperationType = {
+    "*" => OperationType::Mul,
+    "/" => OperationType::Div
+}
+
+AddOp: OperationType = {
+    "+" => OperationType::Add,
+    "-" => OperationType::Sub,
+    "~" => OperationType::Cat
 }
 
 ExprValue: Expression = {
     "catena" => Expression::StringValue {value: <>},
+    "number" => Expression::Number {value: <>},
     "id" => Expression::Variable {identifier: <>}
 }
 
@@ -125,5 +152,3 @@ FuncCall: Expression = {
                 }
             }
 }
-
-

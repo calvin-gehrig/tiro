@@ -69,6 +69,24 @@ fn voc() {
 }
 
 #[test]
+fn number() {
+    assert_eq!(tokenize("12_000_004"), Ok(vec![Token::Number(12000004)]));
+}
+
+#[test]
+fn operations() {
+    assert_eq!(tokenize("+-*/^~"),
+    Ok(vec![
+        Token::Plus,
+        Token::Minus,
+        Token::Star,
+        Token::Slash,
+        Token::Caret,
+        Token::Tile
+    ]));
+}
+
+#[test]
 fn hello_world() {
     assert_eq!(tokenize("echo \"Hello,\"\necho \"world!\""), Ok(vec![
         Token::Echo,

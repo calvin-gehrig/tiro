@@ -5,6 +5,7 @@ use logos::Lexer;
 pub enum LexingError {
     InvalidToken(char),
     RegexStringError(String),
+    InvalidNumber(String),
     #[default]
     Other
 }
