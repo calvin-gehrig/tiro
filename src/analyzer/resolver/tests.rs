@@ -112,6 +112,16 @@ fn binary_operation() {
         ));
 }
 
+#[test]
+fn cast() {
+    assert_eq!(resolve(vec![
+        stmt!(call expr!(cast "cat" expr!(num 5)))
+    ]), res_ast!(
+        ast [
+            stmt!(call expr!(rcast StringType expr!(num 5)))
+        ]
+    ));
+}
 
 #[test]
 fn variable_error() {

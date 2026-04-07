@@ -1,12 +1,14 @@
-use crate::compiler::{
-    Opcode,
-    StackValue,
-    CompiledProgram
-};
+use crate::compiler::CompiledProgram;
+use crate::comp_prog;
 
 use super::{
     Interpreter,
     interpret_code
+};
+
+use crate::bytecode::{
+    Op,
+    NumSize
 };
 
 fn interpret(program: CompiledProgram) -> Vec<String> {
@@ -19,60 +21,85 @@ fn interpret(program: CompiledProgram) -> Vec<String> {
 
 #[test]
 fn print() {
-    assert_eq!(interpret(CompiledProgram {
-            main_program: vec![
-                Opcode::Push(StackValue::StringIndex(0)),
-                Opcode::Print
-            ],
-            string_pool: vec!["a".to_string()],
-            function_pool: vec![]
-        }),
-        vec!["a".to_string()]);
+    assert_eq!(interpret(
+        comp_prog!(
+            main [ Push, val8 0, Write]
+            stri ["a"])
+    ),
+    vec!["a"]);
 }
 
 #[test]
 fn variable_declaration() {
-    assert_eq!(interpret(CompiledProgram {
-            main_program: vec![
-                Opcode::Push(StackValue::StringIndex(0)),
-                Opcode::LoadLocal(0, 0),
-                Opcode::Print
-            ],
-            string_pool: vec!["a".to_string()],
-            function_pool: vec![]
-        }),
-        vec!["a"]);
+    assert_eq!(interpret(
+        comp_prog!(
+            main [ Push, val8 0, Load, val8 0, val8 0, Write]
+            stri ["a"])
+    ),
+    vec!["a"]);
 }
 
 #[test]
 fn function_declaration() {
-    assert_eq!(interpret(CompiledProgram {
-        main_program: vec![
-            Opcode::Push(StackValue::StringIndex(0)),
-            Opcode::Call(0, 1),
-            Opcode::Push(StackValue::StringIndex(1)),
-            Opcode::Call(1, 2),
-            Opcode::Pop
-        ],
-        string_pool: vec![
-            "pff".to_string(),
-            "aah".to_string()
-        ],
-        function_pool: vec![
-            vec![
-                Opcode::LoadLocal(0, 0),
-                Opcode::Print,
-                Opcode::LoadLocal(0, 0),
-                Opcode::Return
-            ],
-            vec![
-                Opcode::LoadLocal(0, 0),
-                Opcode::Print,
-                Opcode::LoadLocal(1, 0),
-                Opcode::Print,
-                Opcode::Return
+    assert_eq!(interpret(
+        comp_prog!(
+            main [
+                Push, val8 0, Call, val8 0, val8 1,
+                Push, val8 1, Call, val8 1, val8 2, Pop
             ]
-        ]
-    }),
-    vec!["pff", "pff", "aah"]);
+            stri ["pff", "aah"]
+            func [
+                {
+                    Load, val8 0, val8 0, Write,
+                    Load, val8 0, val8 0, Return
+                },
+                {
+                    Load, val8 0, val8 0, Write,
+                    Load, val8 1, val8 0, Write,
+                    Return
+                }
+            ])
+    ), vec!["pff", "pff", "aah"]);
+}
+
+#[test]
+fn concat_operation() {
+    assert_eq!(interpret(
+        comp_prog!(
+            main [ Push, val8 0, Push, val8 1, Cat, Write]
+            stri ["b", "a"])
+    ),
+    vec!["ab"]);
+}
+
+#[test]
+fn str_int_cast() {
+    assert_eq!(interpret(
+            comp_prog!(
+                main [ 
+                    Push, val8 0, Str2Int, Push, val8 2,
+                    Add, Int2Str, Write
+                ]
+                stri ["3"])
+    ),
+    vec!["5"]);
+}
+
+#[test]
+fn int_bool_cast() {
+    assert_eq!(interpret(
+            comp_prog!(
+                main [ Push, val8 5, Int2Bool, Int2Str, Write])
+    ),
+    vec!["1"]);
+}
+
+#[test]
+fn str_bool_cast() {
+    assert_eq!(interpret(
+            comp_prog!(
+                main [ Push, val8 0, Str2Bool, Bool2Str, Write]
+                stri [""])
+    ),
+    vec!["false"]);
 }

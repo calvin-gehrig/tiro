@@ -8,8 +8,8 @@ use crate::bytecode::{
     NumSize
 };
 
-//#[cfg(test)]
-//mod tests;
+#[cfg(test)]
+mod tests;
 
 struct Interpreter {
     main_program: IntoIter<u8>,
@@ -30,7 +30,7 @@ impl Interpreter {
                     function.into_iter()
                 }).collect(),
             string_pool: program.string_pool,
-            stack: vec![],
+            stack: vec![0x00],
             output: Vec::new(),
             current_frame: 0,
             current_function: 0
@@ -216,5 +216,38 @@ fn interpret_code(opcode: Op, interpreter: &mut Interpreter) {
             let index = interpreter.write_string(lhs + &rhs);
             interpreter.push_stack(index);
         },
+        Op::Str2Int => {
+            let operand_index = interpreter.pop_stack();
+            let operand = interpreter.get_string(operand_index);
+            let conversion = operand.parse()
+                .expect("Runtime error: string to int conversion error");
+            interpreter.push_stack(conversion);
+        },
+        Op::Int2Str => {
+            let operand = interpreter.pop_stack();
+            let index = interpreter.write_string(
+                operand.to_string());
+            interpreter.push_stack(index);
+        },
+        Op::Bool2Str => {
+            let operand = interpreter.pop_stack();
+            let index = interpreter.write_string(
+                if operand == 0 { "false".to_string() }
+                else { "true".to_string() });
+            interpreter.push_stack(index);
+        },
+        Op::Int2Bool => {
+            let operand = interpreter.pop_stack();
+            interpreter.push_stack(
+                if operand == 0 { 0 }
+                else { 1 });
+        }
+        Op::Str2Bool => {
+            let operand_index = interpreter.pop_stack();
+            interpreter.push_stack(
+                if interpreter.get_string(operand_index) == "" {
+                    0
+                } else { 1 });
+        }
     }
 }

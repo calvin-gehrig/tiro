@@ -147,13 +147,30 @@ fn check_return(maybe_value: &mut Option<Expression>, id: usize, type_checker: &
 fn check_expression(expression: &mut Expression, type_checker: &mut TypeChecker) -> Type {
     match expression {
         Expression::StringValue {..} => Type::StringType,
+
         Expression::Number {..} => Type::Integer,
+
+        Expression::Boolean {..} => Type::Boolean,
+
         Expression::LocalVar {id, ..} => check_variable(*id, type_checker),
+
         Expression::ResolvedFunctionCall {id, argument_list} => check_function_call(*id, argument_list, type_checker),
+
         Expression::BinaryOperation {lhs, rhs, op_type} => check_binary(
             &mut *lhs,
             &mut *rhs,
         op_type, type_checker),
+
+        Expression::ResolvedCast {operand, output_type} => {
+            let input_type = check_expression(&mut *operand, type_checker);
+            let output = output_type.clone();
+            *expression = Expression::AnalyzedCast {
+                operand: operand.clone(),
+                output_type: output_type.clone(),
+                input_type,
+            };
+            output
+        },
         _ => panic!("Unsupported expression type")
     }
 }

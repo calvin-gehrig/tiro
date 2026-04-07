@@ -83,12 +83,26 @@ pub struct ParamType {
 pub enum Expression {
     StringValue {value: String},
     Number {value: u32},
+    Boolean {value: bool},
     Variable {identifier: String},
     LocalVar {id: usize, depth: usize},
     BinaryOperation {
         lhs: Box<Expression>,
         rhs: Box<Expression>,
         op_type: OperationType
+    },
+    Cast {
+        operand: Box<Expression>,
+        output_type: String
+    },
+    ResolvedCast {
+        operand: Box<Expression>,
+        output_type: Type
+    },
+    AnalyzedCast {
+        operand: Box<Expression>,
+        output_type: Type,
+        input_type: Type
     },
     FunctionCall {
         identifier: String,
@@ -114,6 +128,7 @@ impl Expression {
 pub enum Type {
     StringType,
     Integer,
+    Boolean,
     Null(Nil)
 }
 

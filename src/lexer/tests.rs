@@ -34,6 +34,11 @@ fn column() {
 }
 
 #[test]
+fn double_column() {
+    assert_eq!(tokenize("::"), Ok(vec![Token::DoubleColumn]));
+}
+
+#[test]
 fn identifier() {
     assert_eq!(tokenize("_abc12"), Ok(vec![Token::Identifier("_abc12".to_string())]));
 }
@@ -84,6 +89,18 @@ fn operations() {
         Token::Caret,
         Token::Tile
     ]));
+}
+
+#[test]
+fn true_lit() {
+    assert_eq!(tokenize("vervm"),
+    Ok(vec![Token::True]));
+}
+
+#[test]
+fn false_lit() {
+    assert_eq!(tokenize("falsvm"),
+    Ok(vec![Token::False]));
 }
 
 #[test]

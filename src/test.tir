@@ -1,5 +1,6 @@
-fvnctio greet(message: cat)=>cat
-	echo message
-reddi message
+fvnctio greet(name: cat)=>cat
+	echo "Hello " ~ name
+reddi "I'm Tiro"
 
-echo greet("Hello, world!")
+sit a vervm
+echo a::cat

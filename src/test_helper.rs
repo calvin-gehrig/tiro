@@ -120,6 +120,25 @@ macro_rules! expr {
             argument_list: Box::new(vec![ $( $arg ),* ])
         }
     };
+    (cast $otype:literal $oper:expr) => {
+        Expression::Cast {
+            operand:Box::new($oper),
+            output_type:$otype.to_string()
+        }
+    };
+    (rcast $otype:ident $oper:expr) => {
+        Expression::ResolvedCast {
+            operand:Box::new($oper),
+            output_type:Type::$otype
+        }
+    };
+    (acast $itype:ident $otype:ident $oper:expr) => {
+        Expression::AnalyzedCast {
+            operand:Box::new($oper),
+            input_type:Type::$itype,
+            output_type:Type::$otype
+        }
+    };
 }
 
 #[macro_export]
@@ -152,5 +171,77 @@ macro_rules! res_ast {
             },
             error_mode: false
         }
+    };
+}
+
+#[macro_export]
+macro_rules! an_ast {
+    (ast [ $( $stmt:expr ),* ] 
+     $( var [ $( $varname:literal $id:literal $( $vartype:ident )? ),* ] )? 
+     $( func [ $( $fname:literal ( $( $param_name:literal $param_type:ident ),* ) $( $return_type:ident )? ),* ] )? ) => {
+        AnalyzedAst {
+            ast: vec![ $( $stmt ),* ],
+            symtable: Symtable {
+                variable_table: vec![ $(
+                    $( LocalVariable {
+                        identifier: $varname.to_string(),
+                        index: $id,
+                        vartype: opt!($(Type::$vartype)?)
+                    } ),*
+                )?],
+                function_table: vec![ $(
+                    $( Function {
+                        identifier: $fname.to_string(),
+                        return_type: opt!($(Type::$return_type)?),
+                        param_list: vec![
+                            $( ParamType {
+                                identifier: $param_name.to_string(),
+                                param_type: Type::$param_type
+                            } ),*
+                        ]
+                    } ),*
+                )?]
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! comp_prog {
+    (main [ $( $byte:ident $( $value:literal )? ),* ]
+     $(stri [ $( $stri:literal ),* ])? 
+     $( func [ $( { $( $fnbyte:ident $( $fnvalue:literal )? ),* } ),* ] )? ) => {
+        CompiledProgram {
+            main_program: vec![
+                $( comp_prog!($byte$( $value)?) ),*
+            ].into_iter().flatten().collect(),
+            string_pool: vec![ $(
+                $( $stri.to_string() ),*
+            )? ],
+            function_pool: vec![ $(
+                $( vec![
+                    $( comp_prog!($fnbyte$( $fnvalue)?) ),*
+                ].into_iter().flatten().collect() ),*
+            )? ]
+        }
+    };
+    (val8 $num:literal) => {
+        vec![NumSize::_8 as u8,
+            u8::from($num)]
+    };
+    (val32 $num:literal) => {
+        {
+            vec![NumSize::_32 as u8]
+                .append(u32::from($num).to_ne_bytes())
+        }
+    };
+    (val64 $num:literal) => {
+        {
+            vec![NumSize::_64 as u8]
+                .append(u64::from($num).to_ne_bytes())
+        }
+    };
+    ($op:ident) => {
+        vec![Op::$op as u8]
     };
 }

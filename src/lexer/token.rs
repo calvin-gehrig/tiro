@@ -22,6 +22,10 @@ pub enum Token {
     Reddi,
     #[token("voc")]
     Voc,
+    #[token("vervm")]
+    True,
+    #[token("falsvm")]
+    False,
     #[token("+")]
     Plus,
     #[token("-")]
@@ -34,6 +38,8 @@ pub enum Token {
     Caret,
     #[token("~")]
     Tile,
+    #[token("::")]
+    DoubleColumn,
     #[token("=>")]
     RightArrow,
     #[token("(")]

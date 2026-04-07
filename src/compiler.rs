@@ -5,7 +5,8 @@ use crate::common::{
     Symtable,
     Statement,
     Expression,
-    OperationType
+    OperationType,
+    Type
 };
 
 use crate::bytecode::{
@@ -13,8 +14,8 @@ use crate::bytecode::{
     NumSize
 };
 
-//#[cfg(test)]
-//mod tests;
+#[cfg(test)]
+mod tests;
 
 struct Compiler {
     main_program: Vec<u8>,
@@ -151,9 +152,11 @@ fn compile_expression(expression: Expression, compiler: &mut Compiler) {
     match expression {
         Expression::StringValue {value} => compile_string(value, compiler),
         Expression::Number {value} => compile_number(value, compiler),
+        Expression::Boolean {value} => compile_bool(value, compiler),
         Expression::LocalVar {id, depth} => compile_variable(id, depth, compiler),
         Expression::ResolvedFunctionCall {id, argument_list} => compile_function_call(id, *argument_list, compiler),
         Expression::BinaryOperation {lhs, rhs, op_type} => compile_binary(*lhs, *rhs, op_type, compiler),
+        Expression::AnalyzedCast {operand, input_type, output_type} => compile_cast(*operand, input_type, output_type, compiler),
         _ => panic!("Unsupported expression type")
     }
 }
@@ -167,6 +170,11 @@ fn compile_string(string: String, compiler: &mut Compiler) {
 fn compile_number(value: u32, compiler: &mut Compiler) {
     compiler.push_opcode(Op::Push);
     compiler.push_value(usize::try_from(value).unwrap());
+}
+
+fn compile_bool(value: bool, compiler: &mut Compiler) {
+    compiler.push_opcode(Op::Push);
+    compiler.push_value(if value { 1 } else { 0 });
 }
 
 fn compile_variable(id: usize, depth: usize, compiler: &mut Compiler) {
@@ -197,4 +205,18 @@ fn compile_binary(lhs: Expression, rhs: Expression, op_type: OperationType, comp
         OperationType::Pow => Op::Pow,
         OperationType::Cat => Op::Cat,
     });
+}
+
+fn compile_cast(operand: Expression, input_type: Type, output_type: Type, compiler: &mut Compiler) {
+    compile_expression(operand, compiler);
+    if input_type != Type::Boolean || output_type != Type::Integer {
+        compiler.push_opcode(match (input_type, output_type) {
+            (Type::StringType, Type::Integer) => Op::Str2Int,
+            (Type::Integer, Type::StringType) => Op::Int2Str,
+            (Type::Boolean, Type::StringType) => Op::Bool2Str,
+            (Type::Integer, Type::Boolean) => Op::Int2Bool,
+            (Type::StringType, Type::Boolean) => Op::Str2Bool,
+            _ => panic!("Unexpected type conversion")
+        });
+    }
 }

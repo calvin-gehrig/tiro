@@ -26,7 +26,7 @@ enum Reference {
     Function(usize)
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Environment {
     current_environment: HashMap<String, Reference>,
     local_depth: usize,
@@ -36,7 +36,9 @@ struct Environment {
 
 impl Environment {
     fn push_ref(&mut self, name: String, reference: Reference) {
-        self.local_count += 1;
+        if let &Reference::Variable(_) = &reference {
+            self.local_count += 1;
+        }
         self.current_environment.insert(name, reference);
     }
 
@@ -68,7 +70,7 @@ impl Environment {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 enum UpperEnv {
     Env(Box<Environment>),
     #[default]
@@ -106,6 +108,7 @@ impl Resolver {
                     match type_name.as_str() {
                         "cat" => Ok(Some(Type::StringType)),
                         "num" => Ok(Some(Type::Integer)),
+                        "bin" => Ok(Some(Type::Boolean)),
                         _ => Err(ReferenceError::UndefinedTypeName(type_name))
                     }
             },
@@ -318,6 +321,7 @@ fn resolve_expression(expression: Expression, resolver: &mut Resolver) -> Result
             argument_list
         } => resolve_function_call(identifier, argument_list, resolver),
         Expression::BinaryOperation {lhs, rhs, op_type} => resolve_binary(*lhs, *rhs, op_type, resolver),
+        Expression::Cast {operand, output_type} => resolve_cast(*operand, output_type, resolver),
         _ => Ok(expression)
     }
 }
@@ -345,4 +349,12 @@ fn resolve_binary(lhs: Expression, rhs: Expression, op_type: OperationType, reso
     let lhs = Box::new(resolve_expression(lhs, resolver)?);
     let rhs = Box::new(resolve_expression(rhs, resolver)?);
     Ok(Expression::BinaryOperation {lhs, rhs, op_type})
+}
+
+fn resolve_cast(operand: Expression, output_type: String, resolver: &mut Resolver) -> Result<Expression, ReferenceError> {
+    let output_type = resolver.resolve_type(Some(output_type))?
+        .expect("Unexpected none type");
+    let operand = Box::new(
+        resolve_expression(operand, resolver)?);
+    Ok(Expression::ResolvedCast {operand, output_type})
 }

@@ -109,6 +109,13 @@ fn power() {
 }
 
 #[test]
+fn cast() {
+    assert_eq!(parse_test("voc 5::cat"), vec![
+        stmt!(call expr!(cast "cat" expr!(num 5)))
+    ]);
+}
+
+#[test]
 #[should_panic(expected = "Parsing error: UnrecognizedToken")]
 fn parser_error() {
     parse_test("echo echo");

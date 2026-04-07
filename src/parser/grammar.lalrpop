@@ -25,11 +25,14 @@ extern {
         "fvnctio" => Token::Functio,
         "reddi" => Token::Reddi,
         "voc" => Token::Voc,
+        "true" => Token::True,
+        "false" => Token::False,
         "+" => Token::Plus,
         "-" => Token::Minus,
         "*" => Token::Star,
         "/" => Token::Slash,
         "^" => Token::Caret,
+        "::" => Token::DoubleColumn,
         "~" => Token::Tile,
         "(" => Token::LeftParan,
         ")" => Token::RightParan,
@@ -55,7 +58,7 @@ StmtPrint: Statement = {
 }
 
 StmtVariableDeclaration : Statement = {
-    "sit" <varname:"id"> ":" <vartype:"id"?> <varvalue:Expr> => Statement::VariableDeclaration {
+    "sit" <varname:"id"> <vartype: (":" <"id">)?> <varvalue:Expr> => Statement::VariableDeclaration {
         value: varvalue,
         variable_type: vartype,
         identifier: varname
@@ -113,12 +116,17 @@ Expr: Expression = {
     ExprValue,
     #[precedence(level="2")]
     FuncCall,
-    #[precedence(level="3")] #[assoc(side="right")]
+    #[precedence(level="3")]
+    <lhs:Expr> "::" <rhs:"id"> => Expression::Cast {
+        operand: Box::new(lhs),
+        output_type: rhs
+    },
+    #[precedence(level="4")] #[assoc(side="right")]
     <lhs:Expr> "^" <rhs:Expr> => Expression::binary(lhs, rhs,
         OperationType::Pow),
-    #[precedence(level="4")] #[assoc(side="left")]
-    <lhs:Expr> <op:MultOp> <rhs:Expr> => Expression::binary(lhs, rhs, op),
     #[precedence(level="5")] #[assoc(side="left")]
+    <lhs:Expr> <op:MultOp> <rhs:Expr> => Expression::binary(lhs, rhs, op),
+    #[precedence(level="6")] #[assoc(side="left")]
     <lhs:Expr> <op:AddOp> <rhs:Expr> => Expression::binary(lhs, rhs, op)
 }
 
@@ -136,6 +144,8 @@ AddOp: OperationType = {
 ExprValue: Expression = {
     "catena" => Expression::StringValue {value: <>},
     "number" => Expression::Number {value: <>},
+    "true" => Expression::Boolean {value: true},
+    "false" => Expression::Boolean {value: false},
     "id" => Expression::Variable {identifier: <>}
 }
 
