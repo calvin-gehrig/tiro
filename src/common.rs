@@ -63,6 +63,12 @@ pub enum Statement {
     },
     Call {
         expression: Expression
+    },
+    IfElse {
+        condition: Expression,
+        if_block: Box<Vec<Statement>>,
+        elif_list: Vec<If>,
+        else_block: Box<Option<Vec<Statement>>>
     }
 }
 
@@ -77,6 +83,12 @@ pub struct Parameter {
 pub struct ParamType {
     pub identifier: String,
     pub param_type: Type
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct If {
+    pub block: Box<Vec<Statement>>,
+    pub condition: Expression,
 }
 
 #[derive(Debug, Clone, PartialEq)]

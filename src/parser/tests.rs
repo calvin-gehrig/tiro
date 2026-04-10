@@ -2,9 +2,11 @@ use crate::common::{
     Statement,
     Expression,
     OperationType,
-    Parameter
+    Parameter,
+    If
 };
 use crate::{
+    opt,
     stmt,
     expr
 };
@@ -112,6 +114,22 @@ fn power() {
 fn cast() {
     assert_eq!(parse_test("voc 5::cat"), vec![
         stmt!(call expr!(cast "cat" expr!(num 5)))
+    ]);
+}
+
+#[test]
+fn if_else() {
+    assert_eq!(parse_test("si vervm tvm echo \"a\"
+        nisi falsvm tvm echo \"b\"
+        nisi echo \"c\" fine"),
+        vec![
+            stmt!(ifelse expr!(tru), {
+                stmt!(print expr!(stri "a"))
+            } [expr!(fals), {
+                stmt!(print expr!(stri "b"))
+            }] {
+                stmt!(print expr!(stri "c"))
+            })
     ]);
 }
 

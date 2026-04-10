@@ -104,6 +104,17 @@ fn false_lit() {
 }
 
 #[test]
+fn if_else() {
+    assert_eq!(tokenize("si tvm nisi fine"),
+    Ok(vec![
+        Token::If,
+        Token::Then,
+        Token::Else,
+        Token::End
+    ]));
+}
+
+#[test]
 fn hello_world() {
     assert_eq!(tokenize("echo \"Hello,\"\necho \"world!\""), Ok(vec![
         Token::Echo,

@@ -22,5 +22,6 @@ pub enum TypeError {
     VariableAssignmentError(String, Type, Type),
     ReturnedValueError(String, Type, Type),
     ParameterArgumentError(String, String, Type, Type),
-    BinaryOperandError(OperationType, Type, Type, Type)
+    BinaryOperandError(OperationType, Type, Type, Type),
+    ConditionError(Type)
 }

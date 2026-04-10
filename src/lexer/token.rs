@@ -26,6 +26,14 @@ pub enum Token {
     True,
     #[token("falsvm")]
     False,
+    #[token("si")]
+    If,
+    #[token("tvm")]
+    Then,
+    #[token("nisi")]
+    Else,
+    #[token("fine")]
+    End,
     #[token("+")]
     Plus,
     #[token("-")]

@@ -2,7 +2,8 @@ use crate::common::{
     Statement,
     Expression,
     OperationType,
-    Parameter
+    Parameter,
+    If
 };
 
 use crate::lexer::{
@@ -27,6 +28,10 @@ extern {
         "voc" => Token::Voc,
         "true" => Token::True,
         "false" => Token::False,
+        "si" => Token::If,
+        "tum" => Token::Then,
+        "nisi" => Token::Else,
+        "fine" => Token::End,
         "+" => Token::Plus,
         "-" => Token::Minus,
         "*" => Token::Star,
@@ -50,7 +55,8 @@ Stmt: Statement = {
     StmtPrint,
     StmtVariableDeclaration,
     StmtFunctionDeclaration,
-    CallStmt
+    CallStmt,
+    IfStmt
 }
 
 StmtPrint: Statement = {
@@ -107,8 +113,27 @@ ReturnStmt : Statement = {
     }
 }
 
-CallStmt : Statement = {
+CallStmt: Statement = {
     "voc" <Expr> => Statement::Call {expression:<>}
+}
+
+IfStmt: Statement = {
+    "si" <condition:Expr> "tum" <block:Program>
+        <elif_list:ElifStmt*>
+        <else_block:("nisi" <Program>)?>
+        "fine" => Statement::IfElse {
+            condition: condition,
+            if_block: Box::new(block),
+            else_block: Box::new(else_block),
+            elif_list
+        }
+}
+
+ElifStmt: If = {
+    "nisi" <condition:Expr> "tum" <block:Program> => If {
+        block: Box::new(block),
+        condition
+    }
 }
 
 Expr: Expression = {

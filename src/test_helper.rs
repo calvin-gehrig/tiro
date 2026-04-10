@@ -85,6 +85,22 @@ macro_rules! stmt {
     (call $expression:expr) => {
         Statement::Call { expression:$expression }
     };
+    (ifelse $condition:expr, { $( $if_stmt:expr ),* } $( [ $(
+            $elif_condition:expr, { $( $elif_stmt:expr ),* }
+        ),* ] )? $( { $( $else_stmt:expr ),* } )? ) => {
+        Statement::IfElse {
+            condition: $condition,
+            if_block: Box::new(vec![ $( $if_stmt ),* ]),
+            else_block: Box::new(opt!($( vec![ $( $else_stmt ),* ] )?)),
+            elif_list: vec![ $( $(
+                If {
+                    condition: $elif_condition,
+                    block: Box::new(vec![ $( $elif_stmt ),* ])
+                }
+            ),* )? ]
+        }
+
+    };
 }
 
 #[macro_export]
@@ -94,6 +110,12 @@ macro_rules! expr {
     };
     (num $value:literal) => {
         Expression::Number { value:$value }
+    };
+    (tru) => {
+        Expression::Boolean { value: true }
+    };
+    (fals) => {
+        Expression::Boolean { value: false }
     };
     (var $id:literal) => {
         Expression::Variable { identifier:$id.to_string() }

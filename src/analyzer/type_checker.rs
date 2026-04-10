@@ -5,6 +5,7 @@ use crate::common::{
     Expression,
     Function,
     LocalVariable,
+    If,
     Type,
     OperationType
 };
@@ -21,9 +22,7 @@ mod tests;
 
 pub fn type_check(mut resolved_ast: ResolvedAst) -> ResolvedAst {
     let mut type_checker = TypeChecker::new(resolved_ast.symtable, resolved_ast.error_mode);
-    for statement in &mut resolved_ast.ast {
-        check_statement(statement, &mut type_checker);
-    }
+    check_block(&mut resolved_ast.ast, &mut type_checker);
     if type_checker.error_stack.len() > 0 {
         for error in &type_checker.error_stack {
             println!("{:?}", error);
@@ -74,15 +73,23 @@ impl TypeChecker {
     }
 }
 
+fn check_block(block: &mut Vec<Statement>, type_checker: &mut TypeChecker) {
+    for statement in block {
+        check_statement(statement, type_checker);
+    }
+}
+
 fn check_statement(statement: &mut Statement, type_checker: &mut TypeChecker) {
     match statement {
         Statement::Print {value} => check_print(value, type_checker),
         Statement::VariableAssignment {identifier, value} => check_variable_assignment(*identifier, value, type_checker),
-        Statement::FunctionDefinition {block,..} => check_function_definition(block, type_checker),
+        Statement::FunctionDefinition {block,..} => check_block(&mut **block, type_checker),
         Statement::Call {expression} => {
             check_expression(expression, type_checker);
         },
         Statement::ResolvedReturn {return_value, function} => check_return(return_value, *function, type_checker),
+        Statement::IfElse {condition, if_block, else_block, elif_list} =>
+            check_if_else(condition, if_block, &mut **else_block, elif_list, type_checker),
         _ => panic!("Unsupported Statement type {:?}", statement)
     };
 }
@@ -107,12 +114,6 @@ fn check_variable_assignment(id: usize, value: &mut Expression, type_checker: &m
                         value_type)));
         },
         None => type_checker.assign_vartype(id, value_type)
-    }
-}
-
-fn check_function_definition(block: &mut Vec<Statement>, type_checker: &mut TypeChecker) {
-    for statement in block {
-        check_statement(statement, type_checker);
     }
 }
 
@@ -142,6 +143,26 @@ fn check_return(maybe_value: &mut Option<Expression>, id: usize, type_checker: &
                     )));
         }
     }
+}
+
+fn check_if_else(condition: &mut Expression, if_block: &mut Vec<Statement>, maybe_else_block: &mut Option<Vec<Statement>>, elif_list: &mut Vec<If>, type_checker: &mut TypeChecker) {
+    check_conditional_block(condition, if_block, type_checker);
+    if let Some(else_block) = maybe_else_block {
+        check_block(else_block, type_checker);
+    }
+    for elif in elif_list {
+        check_conditional_block(&mut elif.condition, &mut *elif.block, type_checker);
+    }
+}
+
+fn check_conditional_block(condition: &mut Expression, block: &mut Vec<Statement>, type_checker: &mut TypeChecker) {
+    let condition_type = check_expression(condition, type_checker);
+    if condition_type != Type::Boolean {
+        type_checker.push_error(TypeCheckError::MismatchedTypeError(
+                TypeError::ConditionError(condition_type)
+        ));
+    }
+    check_block(block, type_checker);
 }
 
 fn check_expression(expression: &mut Expression, type_checker: &mut TypeChecker) -> Type {

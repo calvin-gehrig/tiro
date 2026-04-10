@@ -9,6 +9,7 @@ use crate::common::{
     Parameter,
     ParamType,
     OperationType,
+    If,
     Function,
     LocalVariable,
     Type
@@ -203,6 +204,13 @@ fn register_global(ast: &Vec<Statement>, resolver: &mut Resolver) {
     }
 }
 
+fn resolve_scoped_block(block: Vec<Statement>, resolver: &mut Resolver) -> Vec<Statement> {
+    resolver.open_scope(false);
+    let block = resolve_block(block, resolver);
+    resolver.end_scope();
+    block
+}
+
 fn resolve_block(block: Vec<Statement>, resolver: &mut Resolver) -> Vec<Statement> {
     let resolved_block = block.into_iter().map(|statement| {
         resolve_statement(statement, resolver)
@@ -253,6 +261,12 @@ fn resolve_statement(statement: Statement, resolver: &mut Resolver) -> Result<St
             resolver),
         Statement::Call {expression} => Ok(Statement::Call {expression: resolve_expression(expression, resolver)?} ),
         Statement::ReturnStatement {return_value, function} => resolve_return(return_value, function, resolver),
+        Statement::IfElse {
+            condition,
+            if_block,
+            else_block,
+            elif_list
+        } => resolve_if_else(condition, *if_block, *else_block, elif_list, resolver),
         _ => panic!("Unsupported statement type: {:?}", statement)
     }
 }
@@ -309,6 +323,31 @@ fn resolve_return(mut return_value: Option<Expression>, function: String, resolv
     Ok(Statement::ResolvedReturn {
         return_value, 
         function: id
+    })
+}
+
+fn resolve_if_else(condition: Expression, if_block: Vec<Statement>, mut maybe_else_block: Option<Vec<Statement>>, elif_list: Vec<If>, resolver: &mut Resolver) -> Result<Statement, ReferenceError> {
+    let condition = resolve_expression(condition, resolver)?;
+    let if_block = resolve_scoped_block(if_block, resolver);
+
+    if let Some(mut else_block) = maybe_else_block.take() {
+        else_block = resolve_scoped_block(else_block, resolver);
+        maybe_else_block = Some(else_block);
+    } else {
+        maybe_else_block = None;
+    };
+
+    let mut resolved_elif_list = Vec::new();
+    for elif in elif_list {
+        let condition = resolve_expression(elif.condition, resolver)?;
+        let block = resolve_scoped_block(*elif.block, resolver);
+        resolved_elif_list.push(If {condition, block: Box::new(block)});
+    }
+    Ok(Statement::IfElse {
+        condition,
+        if_block: Box::new(if_block),
+        else_block: Box::new(maybe_else_block),
+        elif_list: resolved_elif_list
     })
 }
 

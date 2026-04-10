@@ -6,6 +6,7 @@ use crate::common::{
     ParamType,
     Function,
     LocalVariable,
+    If,
     Type,
     OperationType
 };
@@ -122,6 +123,22 @@ fn cast() {
             ast [
                 stmt!(call expr!(rcast StringType expr!(num 5)))
             ])
+    ), None);
+}
+
+#[test]
+fn if_else() {
+    assert_eq!(type_check(
+            res_ast!(
+                ast [
+                    stmt!(ifelse expr!(tru), {
+                        stmt!(print expr!(stri "a"))
+                    } [ expr!(fals), {
+                        stmt!(print expr!(stri "b"))
+                    } ] {
+                        stmt!(print expr!(stri "c"))
+                    })
+                ])
     ), None);
 }
 
@@ -253,5 +270,20 @@ fn binary_operand_error() {
             Type::Integer,
             Type::StringType
         )
+    )));
+}
+
+#[test]
+fn condition_error() {
+    assert_eq!(type_check(
+            res_ast!(
+                ast [
+                    stmt!(ifelse expr!(num 5), {
+                        stmt!(call expr!(tru))
+                    })
+                ])
+    ),
+    Some(TypeCheckError::MismatchedTypeError(
+            TypeError::ConditionError(Type::Integer)
     )));
 }

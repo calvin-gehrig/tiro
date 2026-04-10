@@ -5,6 +5,7 @@ use crate::common::{
     Expression,
     Parameter,
     ParamType,
+    If,
     OperationType,
     Function,
     LocalVariable,
@@ -121,6 +122,29 @@ fn cast() {
             stmt!(call expr!(rcast StringType expr!(num 5)))
         ]
     ));
+}
+
+#[test]
+fn if_else() {
+    assert_eq!(resolve(vec![
+            stmt!(ifelse expr!(tru), {
+                stmt!(print expr!(stri "a"))
+            } [
+                expr!(fals), {
+                    stmt!(print expr!(stri "b"))
+                }
+            ] { stmt!(print expr!(stri "c")) })
+    ]), res_ast!(
+        ast [
+            stmt!(ifelse expr!(tru), {
+                stmt!(print expr!(stri "a"))
+            } [
+                expr!(fals), {
+                    stmt!(print expr!(stri "b"))
+                }
+            ] { stmt!(print expr!(stri "c")) })
+        ])
+    );
 }
 
 #[test]
