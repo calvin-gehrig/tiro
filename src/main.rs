@@ -1,19 +1,32 @@
-use std::fs;
 use std::env;
+use std::fs;
+
+mod common;
+mod bytecode;
+
+mod test_helper;
 
 mod lexer;
+use lexer::Lexer;
+
 mod parser;
-mod grammar;
+use parser::parse;
+
+mod analyzer;
+use analyzer::analyze;
+
+mod compiler;
+use compiler::compile;
+
+mod interpreter;
+use interpreter::interpret;
 
 fn main() {
-    let raw_program : String = match fs::read_to_string(
-        env::args().skip(1).next().expect("Expected program to interpret")
-    ) {
-        Ok(raw_program) => raw_program,
-        Err(error) => panic!("Can't read provided file: {}", error)
-    };
-    let tokens : Vec<lexer::Token> = lexer::tokenize(raw_program);
-    println!("{:?}", tokens);
-    let parse_result : Vec<parser::EarleyItem> = parser::parse(tokens);
-    println!("{:?}", parse_result);
+    let src = fs::read_to_string(env::args().nth(1).expect("Expected file argument"))
+        .expect("Failed to read file");
+    let lexer = Lexer::new(&src);
+    let ast = parse(lexer);
+    let analyzed_ast = analyze(ast);
+    let compiled_program = compile(analyzed_ast);
+    interpret(compiled_program);
 }

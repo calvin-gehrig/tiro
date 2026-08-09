@@ -1,56 +1,96 @@
-use std::mem;
+use logos::{Logos, Lexer};
 
-impl super::Lexer {
-    pub fn tokenize_whitespace(&mut self) {
-        self.result.push(Token::Whitespace);
-    }
-    pub fn tokenize_string(&mut self) {
-        self.result.push(Token::StringToken(mem::take(&mut self.current_token)));
-        self.current_token = String::new();
-    }
-    pub fn tokenize_word(&mut self) {
-        self.result.push(match self.current_token.as_str() {
-            "sit" => Token::Let,
-            "echo" => Token::Print,
-            _ => Token::Id(mem::take(&mut self.current_token))
-        });
-        self.current_token = String::new();
-    }
-    pub fn tokenize_symbol(&mut self) {
-        self.result.push(match self.current_token.as_str() {
-            "==" => Token::EqualOperator,
-            "!=" => Token::NotEqualOperator,
-            "+" => Token::AddOperator,
-            "-" => Token::SubtractOperator,
-            "*" => Token::MultiplyOperator,
-            "/" => Token::DivideOperator,
-            _ => panic!("Unexpected symbol sequence")
-        });
-        self.current_token = String::new();
-    }
-    pub fn tokenize_number(&mut self) {
-        self.result.push(Token::Number(
-                mem::take(&mut self.current_token)
-                .parse::<u32>()
-                .unwrap_or_else(|_error| panic!("Tried to turn into number a sequence that wasn't entirely a number: {}", self.current_token))
-        ));
-        self.current_token = String::new();
+use std::fmt;
+
+use super::error::LexingError;
+
+#[derive(Logos, Debug, Clone, PartialEq)]
+#[logos(error(LexingError, LexingError::from_lexer))]
+#[logos(skip r"[ \t\n\r]+")]
+pub enum Token {
+    #[regex("\"[^\"]*\"", parse_catena)]
+    Catena(String),
+    #[regex("[0-9][0-9_]*", parse_number)]
+    Number(u32),
+    #[token("echo")]
+    Echo,
+    #[token("sit")]
+    Sit,
+    #[token("fvnctio")]
+    Functio,
+    #[token("reddi")]
+    Reddi,
+    #[token("voc")]
+    Voc,
+    #[token("vervm")]
+    True,
+    #[token("falsvm")]
+    False,
+    #[token("si")]
+    If,
+    #[token("tvm")]
+    Then,
+    #[token("nisi")]
+    Else,
+    #[token("fine")]
+    End,
+    #[token("+")]
+    Plus,
+    #[token("-")]
+    Minus,
+    #[token("*")]
+    Star,
+    #[token("/")]
+    Slash,
+    #[token("^")]
+    Caret,
+    #[token("~")]
+    Tile,
+    #[token("::")]
+    DoubleColumn,
+    #[token("=>")]
+    RightArrow,
+    #[token("(")]
+    LeftParan,
+    #[token(")")]
+    RightParan,
+    #[token("{")]
+    LeftBrace,
+    #[token("}")]
+    RightBrace,
+    #[token(",")]
+    Comma,
+    #[token(":")]
+    Column,
+    #[regex("[a-zA-Z_][a-zA-Z_0-9]*", parse_id)]
+    Identifier(String)
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "{:?}", self)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Token {
-    Let,
-    Print,
-    EqualOperator,
-    NotEqualOperator,    
-    AddOperator,
-    SubtractOperator,
-    MultiplyOperator,
-    DivideOperator,
-    Id(String),
-    StringToken(String),
-    Number(u32),
-    Whitespace,
-    EndOfProgram
+fn parse_catena(lex: &mut Lexer<Token>) -> Result<String, LexingError> {
+    let slice = lex.slice();
+    if slice.len() >= 2 {
+        Ok(slice[1..slice.len() - 1].to_string())
+    } else {
+        Err(LexingError::RegexStringError(slice.to_string()))
+    }
+}
+
+fn parse_number(lex: &mut Lexer<Token>) -> Result<u32, LexingError> {
+    let slice = lex.slice();
+    match slice.chars().
+        filter(|c| *c != '_').collect::<String>()
+    .parse() {
+        Ok(number) => Ok(number),
+        Err(_) => Err(LexingError::InvalidNumber(slice.to_string()))
+    }
+}
+
+fn parse_id(lex: &mut Lexer<Token>) -> String {
+    lex.slice().to_string()
 }

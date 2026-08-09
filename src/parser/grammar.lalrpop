@@ -1,0 +1,189 @@
+use crate::common::{
+    Statement,
+    Expression,
+    OperationType,
+    Parameter,
+    If
+};
+
+use crate::lexer::{
+    token::Token,
+    error::LexingError
+};
+
+grammar;
+
+extern {
+    type Location = usize;
+    type Error = LexingError;
+
+    enum Token {
+        "id" => Token::Identifier(<String>),
+        "echo" => Token::Echo,
+        "sit" => Token::Sit,
+        "catena" => Token::Catena(<String>),
+        "number" => Token::Number(<u32>),
+        "fvnctio" => Token::Functio,
+        "reddi" => Token::Reddi,
+        "voc" => Token::Voc,
+        "true" => Token::True,
+        "false" => Token::False,
+        "si" => Token::If,
+        "tum" => Token::Then,
+        "nisi" => Token::Else,
+        "fine" => Token::End,
+        "+" => Token::Plus,
+        "-" => Token::Minus,
+        "*" => Token::Star,
+        "/" => Token::Slash,
+        "^" => Token::Caret,
+        "::" => Token::DoubleColumn,
+        "~" => Token::Tile,
+        "(" => Token::LeftParan,
+        ")" => Token::RightParan,
+        "," => Token::Comma,
+        "=>" => Token::RightArrow,
+        ":" => Token::Column
+    }
+}
+
+pub Program: Vec<Statement> = {
+    <stmts:Stmt*> => stmts
+}
+
+Stmt: Statement = {
+    StmtPrint,
+    StmtVariableDeclaration,
+    StmtFunctionDeclaration,
+    CallStmt,
+    IfStmt
+}
+
+StmtPrint: Statement = {
+    "echo" <Expr> => Statement::Print {value: <>}
+}
+
+StmtVariableDeclaration : Statement = {
+    "sit" <varname:"id"> <vartype: (":" <"id">)?> <varvalue:Expr> => Statement::VariableDeclaration {
+        value: varvalue,
+        variable_type: vartype,
+        identifier: varname
+    }
+}
+
+StmtFunctionDeclaration : Statement = {
+    "fvnctio" <funcname:"id"> "(" <mut param_list: (<ParamDef> ",")*>
+        <last_param:ParamDef?> ")"
+        <return_type:FunctionReturnType?> <mut block:Program>
+        <mut return_stmt:ReturnStmt> => Statement::FunctionDeclaration {
+            identifier: funcname.clone(),
+            param_list: match last_param {
+                Some(param) => {
+                    param_list.push(param);
+                    param_list
+                },
+                None => param_list
+            },
+            return_type,
+            block: {
+                if let Statement::ReturnStatement {function,..} = &mut return_stmt {
+                    *function = funcname;
+                }
+                block.push(return_stmt);
+                Box::new(block)
+            }
+        }
+}
+
+ParamDef : Parameter = {
+    <name:"id"> ":" <param_type:"id"> => Parameter {
+            identifier: name,
+            param_type: param_type
+        }
+}
+
+FunctionReturnType : String = {
+    "=>" <"id"> => <>
+}
+
+ReturnStmt : Statement = {
+    "reddi" <return_value:Expr?> => Statement::ReturnStatement {
+        return_value,
+        function: String::default()
+    }
+}
+
+CallStmt: Statement = {
+    "voc" <Expr> => Statement::Call {expression:<>}
+}
+
+IfStmt: Statement = {
+    "si" <condition:Expr> "tum" <block:Program>
+        <elif_list:ElifStmt*>
+        <else_block:("nisi" <Program>)?>
+        "fine" => Statement::IfElse {
+            condition: condition,
+            if_block: Box::new(block),
+            else_block: Box::new(else_block),
+            elif_list
+        }
+}
+
+ElifStmt: If = {
+    "nisi" <condition:Expr> "tum" <block:Program> => If {
+        block: Box::new(block),
+        condition
+    }
+}
+
+Expr: Expression = {
+    #[precedence(level="1")]
+    ExprValue,
+    #[precedence(level="2")]
+    FuncCall,
+    #[precedence(level="3")]
+    <lhs:Expr> "::" <rhs:"id"> => Expression::Cast {
+        operand: Box::new(lhs),
+        output_type: rhs
+    },
+    #[precedence(level="4")] #[assoc(side="right")]
+    <lhs:Expr> "^" <rhs:Expr> => Expression::binary(lhs, rhs,
+        OperationType::Pow),
+    #[precedence(level="5")] #[assoc(side="left")]
+    <lhs:Expr> <op:MultOp> <rhs:Expr> => Expression::binary(lhs, rhs, op),
+    #[precedence(level="6")] #[assoc(side="left")]
+    <lhs:Expr> <op:AddOp> <rhs:Expr> => Expression::binary(lhs, rhs, op)
+}
+
+MultOp: OperationType = {
+    "*" => OperationType::Mul,
+    "/" => OperationType::Div
+}
+
+AddOp: OperationType = {
+    "+" => OperationType::Add,
+    "-" => OperationType::Sub,
+    "~" => OperationType::Cat
+}
+
+ExprValue: Expression = {
+    "catena" => Expression::StringValue {value: <>},
+    "number" => Expression::Number {value: <>},
+    "true" => Expression::Boolean {value: true},
+    "false" => Expression::Boolean {value: false},
+    "id" => Expression::Variable {identifier: <>}
+}
+
+FuncCall: Expression = {
+    <name:"id"> "(" <mut args: (<Expr> ",")*> <last_arg:Expr?> ")" =>
+            Expression::FunctionCall {
+                identifier: name,
+                argument_list: match last_arg {
+                    Some(arg) => {
+                        args.push(arg);
+                        Box::new(args)
+                    },
+                    None => Box::new(args)
+                }
+            }
+}
